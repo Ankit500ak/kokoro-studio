@@ -24,8 +24,10 @@ class NVIDIAClient:
     enabling development and testing without NVIDIA account/credits.
     """
 
-    # The account currently exposes gpt-oss-20b; catalog-only models return 404.
-    FALLBACK_MODELS: list[str] = []
+    # Nemotron Super 120B is the primary model (measured ~2s for structured calls).
+    # gpt-oss-20b is the only other model this account can call; the rest of the
+    # catalog returns 404 "not found for account".
+    FALLBACK_MODELS: list[str] = ["openai/gpt-oss-20b"]
 
     # Standardized payload schema keys per pipeline stage
     SCHEMA_DEFINITIONS = {
@@ -209,10 +211,16 @@ class NVIDIAClient:
         user_prompt: str,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        disable_thinking: bool = True,
     ) -> str | None:
         """Generate text from NVIDIA model with full retry logic.
 
         Auto-falls back to local Ollama when NVIDIA_API_KEY is not configured.
+
+        disable_thinking: Nemotron-3 models emit chain-of-thought into the normal
+        content channel and will happily burn the entire token budget on it, so
+        structured/JSON callers must turn thinking off (measured: 1.2s + valid JSON
+        vs 16s + truncated reasoning with thinking on).
         """
         use_ollama = not self.api_key
 
@@ -313,19 +321,27 @@ class NVIDIAClient:
             "top_p": 0.9,
             "stream": False,
         }
-        if self.reasoning_effort:
-            payload["reasoning_effort"] = self.reasoning_effort
-
+        if disable_thinking:
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
         last_error = None
         models_to_try = [self.model] + [
             m for m in self.FALLBACK_MODELS if m != self.model
         ]
 
+        # reasoning_effort is only understood by reasoning models (gpt-oss-*).
+        # Nemotron instruct endpoints ignore or reject it, so don't send it there.
+        def _supports_reasoning(model_id: str) -> bool:
+            return "gpt-oss" in model_id or "reasoning" in model_id
+
         for model in models_to_try:
             payload["model"] = model
-            # Do not repeat expensive generation requests. StoryForge has a
-            # deterministic fallback and can complete the pipeline immediately.
-            for attempt in range(1):
+            if self.reasoning_effort and _supports_reasoning(model) and not disable_thinking:
+                payload["reasoning_effort"] = self.reasoning_effort
+            else:
+                payload.pop("reasoning_effort", None)
+            # Two attempts: the primary model normally answers in 2-15s, so a
+            # retry is cheap. Timeout is capped at NVIDIA_TIMEOUT (90s default).
+            for attempt in range(2):
                 start = time.monotonic()
                 try:
                     client = await self._get_client()
@@ -336,11 +352,27 @@ class NVIDIAClient:
                     )
                     elapsed = time.monotonic() - start
 
-                    if response.status_code == 410:
+                    if response.status_code == 400 and "chat_template_kwargs" in payload:
+                        # Endpoint rejected the thinking toggle - retry once without it.
                         log.warning(
-                            f"[NVIDIA] Model {model} is deprecated (410), trying next model..."
+                            "[NVIDIA] Endpoint rejected chat_template_kwargs (400); "
+                            "retrying without thinking control: %s",
+                            response.text[:200],
                         )
-                        last_error = f"http_410_{model}"
+                        payload.pop("chat_template_kwargs", None)
+                        continue
+
+                    if response.status_code in (400, 404, 410, 422):
+                        # Permanent for this endpoint/model (bad request, unknown
+                        # model, deprecated). Don't burn the remaining attempt -
+                        # fall through to the next model.
+                        log.warning(
+                            "[NVIDIA] Model %s unusable (HTTP %s), trying next model: %s",
+                            model,
+                            response.status_code,
+                            response.text[:300],
+                        )
+                        last_error = f"http_{response.status_code}_{model}"
                         break
 
                     if response.status_code == 429:
@@ -348,15 +380,22 @@ class NVIDIAClient:
                             response.headers.get("Retry-After", 2**attempt)
                         )
                         log.warning(
-                            f"[NVIDIA] Rate limited (attempt {attempt + 1}/1)"
+                            "[NVIDIA] Rate limited (attempt %d/2), waiting %ds",
+                            attempt + 1,
+                            retry_after,
                         )
-                        await asyncio.sleep(retry_after)
+                        if attempt < 1:
+                            await asyncio.sleep(retry_after)
                         continue
 
                     if response.status_code >= 500:
                         log.warning(
-                            f"[NVIDIA] Server error {response.status_code}, no retry"
+                            "[NVIDIA] Server error %s (attempt %d/2)",
+                            response.status_code,
+                            attempt + 1,
                         )
+                        if attempt < 1:
+                            await asyncio.sleep(1)
                         continue
 
                     response.raise_for_status()
@@ -382,10 +421,10 @@ class NVIDIAClient:
                     return None
 
                 except httpx.TimeoutException:
-                    log.error(f"[NVIDIA] Timeout on attempt {attempt + 1}/3")
+                    log.error(f"[NVIDIA] Timeout on attempt {attempt + 1}/2")
                     last_error = "timeout"
-                    if attempt < 2:
-                        await asyncio.sleep(2**attempt)
+                    if attempt < 1:
+                        await asyncio.sleep(1)
                     continue
 
                 except httpx.HTTPStatusError as e:
@@ -393,15 +432,15 @@ class NVIDIAClient:
                         f"[NVIDIA] HTTP error {e.response.status_code}: {e.response.text[:500]}"
                     )
                     last_error = f"http_{e.response.status_code}"
-                    if attempt < 2:
-                        await asyncio.sleep(2**attempt)
+                    if attempt < 1:
+                        await asyncio.sleep(1)
                     continue
 
                 except Exception as e:
-                    log.error(f"[NVIDIA] Error on attempt {attempt + 1}/3: {e}")
+                    log.error(f"[NVIDIA] Error on attempt {attempt + 1}/2: {e}")
                     last_error = str(e)
-                    if attempt < 2:
-                        await asyncio.sleep(2**attempt)
+                    if attempt < 1:
+                        await asyncio.sleep(1)
                     continue
 
         log.error(f"[NVIDIA] All models and attempts failed. Last error: {last_error}")
@@ -427,11 +466,15 @@ class NVIDIAClient:
             return None
 
         # Step 1: Generate response from model
+        # Thinking off + a generous token floor: with thinking enabled the model
+        # spent the whole budget on reasoning and returned no JSON (finish=length).
+        effective_max_tokens = max(max_tokens or 0, self.max_tokens, 1200)
         response = await self.generate(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             temperature=temperature or self.temperature,
-            max_tokens=max_tokens or self.max_tokens,
+            max_tokens=effective_max_tokens,
+            disable_thinking=True,
         )
 
         if not response:
@@ -458,7 +501,7 @@ class NVIDIAClient:
             if isinstance(parsed, (dict, list)):
                 if self._validate_against_schema(parsed, schema):
                     self.successful_parses += 1
-                    log.info(f"[NVIDIA] ✅ Parsed structured JSON for {schema_key}")
+                    log.info(f"[NVIDIA] [OK] Parsed structured JSON for {schema_key}")
                     return parsed
                 else:
                     log.error(
@@ -467,7 +510,7 @@ class NVIDIAClient:
             else:
                 # Non-dict/list response (e.g., string draft)
                 self.successful_parses += 1
-                log.info(f"[NVIDIA] ✅ Parsed {schema_key}: non-JSON response")
+                log.info(f"[NVIDIA] [OK] Parsed {schema_key}: non-JSON response")
                 return parsed
 
         # Step 3: Fallback - try direct parse on original response
@@ -480,7 +523,7 @@ class NVIDIAClient:
                     if self._validate_against_schema(direct, schema):
                         self.successful_parses += 1
                         log.warning(
-                            f"[NVIDIA] 📥 Parsed JSON directly for {schema_key} (model complied)"
+                            f"[NVIDIA] [JSON] Parsed JSON directly for {schema_key} (model complied)"
                         )
                         return direct
                     else:
@@ -492,7 +535,7 @@ class NVIDIAClient:
                 if self._validate_against_schema(response, schema):
                     self.successful_parses += 1
                     log.warning(
-                        f"[NVIDIA] 📥 Response is dict, validated directly for {schema_key}"
+                        f"[NVIDIA] [JSON] Response is dict, validated directly for {schema_key}"
                     )
                     return response
                 else:
@@ -527,7 +570,7 @@ class NVIDIAClient:
                 if isinstance(parsed, (dict, list)):
                     if self._validate_against_schema(parsed, schema):
                         log.warning(
-                            f"[NVIDIA] 🔍 Extracted JSON via regex for {schema_key}"
+                            f"[NVIDIA] [RE] Extracted JSON via regex for {schema_key}"
                         )
                         self.successful_parses += 1
                         return parsed
@@ -541,13 +584,22 @@ class NVIDIAClient:
             )
         # Step 6: Return default payload for this schema
         log.error(
-            f"[NVIDIA] ❌ Failed to parse structured JSON for {schema_key} ({len(response) if response else 0} chars). Using defaults."
+            f"[NVIDIA] [FAIL] Failed to parse structured JSON for {schema_key} ({len(response) if response else 0} chars). Using defaults."
         )
         self.parse_failures += 1
         return self._get_default_payload(schema_key)
 
     def _normalize_schema_shape(self, data: Any, schema: dict) -> Any:
         """Normalize small shape/metadata omissions without hiding bad payloads."""
+        if schema.get("type") == "object" and isinstance(data, list):
+            # Model wrapped the object in a list, e.g. [ {quality fields...} ].
+            dicts = [item for item in data if isinstance(item, dict)]
+            if dicts:
+                log.warning(
+                    "[NVIDIA] Model returned a list for an object schema; unwrapping"
+                )
+                data = dicts[0]
+
         if schema.get("type") == "object" and isinstance(data, dict):
             if "lead_gender" in data and isinstance(data["lead_gender"], str):
                 data["lead_gender"] = data["lead_gender"].strip().lower()
@@ -600,6 +652,25 @@ class NVIDIAClient:
                 elif "beat_number" in item:
                     item.setdefault("micro_hook_technique", "curiosity")
                     item.setdefault("hook_category", "mystery")
+
+            # A single malformed item must not sink the whole payload. Drop
+            # items that miss required fields when enough valid ones remain.
+            item_schema = schema.get("items", {})
+            min_items = schema.get("minItems", 0)
+            if item_schema.get("type") == "object" and data:
+                valid_items = [
+                    item
+                    for item in data
+                    if isinstance(item, dict)
+                    and self._validate_value(item, item_schema)
+                ]
+                if len(valid_items) < len(data) and len(valid_items) >= min_items:
+                    log.warning(
+                        "[NVIDIA] Dropped %d malformed item(s); %d valid remain",
+                        len(data) - len(valid_items),
+                        len(valid_items),
+                    )
+                    data = valid_items
 
             # Preserve a valid generated hook when the model returns fewer
             # than five variants; complete the list with deterministic hooks.

@@ -56,9 +56,10 @@ class Settings(BaseSettings):
     # NVIDIA NIM API (working models as of 2024) - set NVIDIA_API_KEY in .env to enable
     NVIDIA_API_KEY: str = ""
     NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
-    NVIDIA_MODEL: str = "openai/gpt-oss-20b"
+    # Nemotron Super 120B (A12B active params) - fastest JSON-compliant model on NIM.
+    NVIDIA_MODEL: str = "nvidia/nemotron-3-super-120b-a12b"
     NVIDIA_REASONING_EFFORT: str = "low"
-    NVIDIA_TIMEOUT: float = 180.0
+    NVIDIA_TIMEOUT: float = 90.0
     NVIDIA_MAX_TOKENS: int = 4096
     NVIDIA_TEMPERATURE: float = 0.8
 

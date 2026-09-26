@@ -1,5 +1,9 @@
-import { API_BASE } from '../lib/api'
+﻿import { API_BASE } from '../lib/api'
 import { fetchWithTimeout } from '../lib/fetch'
+
+// Each backend endpoint runs 2 pipeline stages. Backend allows STORY_STAGE_TIMEOUT
+//(240s) per stage, so the client must wait longer than that before aborting.
+const STAGE_TIMEOUT = 540000
 
 export interface StoryClassification {
   category: string
@@ -74,7 +78,7 @@ export async function startPipeline(theme: string, targetDuration: number = 120)
   const res = await fetchWithTimeout(`${API_BASE}/forge/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    timeout: 120000,
+    timeout: STAGE_TIMEOUT,
     body: JSON.stringify({ theme, target_duration: targetDuration }),
   })
   if (!res.ok) {
@@ -94,7 +98,7 @@ export async function selectHook(sessionId: string, hookId: string): Promise<Sta
   const res = await fetchWithTimeout(`${API_BASE}/forge/select-hook`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    timeout: 120000,
+    timeout: STAGE_TIMEOUT,
     body: JSON.stringify({ session_id: sessionId, hook_id: hookId }),
   })
   if (!res.ok) {
@@ -107,7 +111,7 @@ export async function selectHook(sessionId: string, hookId: string): Promise<Sta
 export async function generateDraft(sessionId: string): Promise<StageResponse> {
   const res = await fetchWithTimeout(`${API_BASE}/forge/generate-draft/${sessionId}`, {
     method: 'POST',
-    timeout: 120000,
+    timeout: STAGE_TIMEOUT,
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -119,7 +123,7 @@ export async function generateDraft(sessionId: string): Promise<StageResponse> {
 export async function retentionPass(sessionId: string): Promise<StageResponse> {
   const res = await fetchWithTimeout(`${API_BASE}/forge/retention-pass/${sessionId}`, {
     method: 'POST',
-    timeout: 120000,
+    timeout: STAGE_TIMEOUT,
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -131,7 +135,7 @@ export async function retentionPass(sessionId: string): Promise<StageResponse> {
 export async function qualityScore(sessionId: string): Promise<StageResponse> {
   const res = await fetchWithTimeout(`${API_BASE}/forge/quality-score/${sessionId}`, {
     method: 'POST',
-    timeout: 120000,
+    timeout: STAGE_TIMEOUT,
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
