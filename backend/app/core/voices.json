@@ -1,0 +1,396 @@
+{
+  "voices": [
+    {
+      "id": "am_liam",
+      "name": "Liam",
+      "language": "English",
+      "accent": "American",
+      "gender": "Male",
+      "style": "Conversational",
+      "tone": "natural",
+      "weight": "normal",
+      "description": "Most natural, youthful voice. Sounds like chatting with a friend.",
+      "recommended": true,
+      "tags": ["conversational", "relaxed", "natural", "youthful", "best", "shorts-optimized"],
+      "best_for": "shorts",
+      "settings": {
+        "speed": 1.08,
+        "tip": "Best for fast-paced shorts. Natural, hook-driven delivery."
+      },
+      "storytelling": {
+        "speed": 1.06,
+        "description": "Conversational storyteller — friendly, relatable narration",
+        "best_for": "casual stories, vlogs, personal narratives"
+      },
+      "shorts": {
+        "speed": 1.18,
+        "description": "Fast, punchy — hooks viewers in the first second",
+        "best_for": "YouTube Shorts, TikTok, Instagram Reels"
+      }
+    },
+    {
+      "id": "am_adam",
+      "name": "Adam",
+      "language": "English",
+      "accent": "American",
+      "gender": "Male",
+      "style": "Natural Narration",
+      "tone": "warm",
+      "weight": "light",
+      "description": "Clear, friendly voice. Great for tutorials and approachable content.",
+      "recommended": true,
+      "tags": ["tutorial", "casual", "friendly", "youthful", "shorts-optimized"],
+      "best_for": "shorts",
+      "settings": {
+        "speed": 1.05,
+        "tip": "Clear and friendly — perfect for educational shorts."
+      },
+      "storytelling": {
+        "speed": 1.03,
+        "description": "Warm narrator — gentle pacing, approachable tone",
+        "best_for": "tutorials, explainer videos, how-to stories"
+      },
+      "shorts": {
+        "speed": 1.16,
+        "description": "Clear, friendly energy — keeps viewers watching",
+        "best_for": "educational shorts, tips & tricks, life hacks"
+      }
+    },
+    {
+      "id": "am_onyx",
+      "name": "Onyx",
+      "language": "English",
+      "accent": "American",
+      "gender": "Male",
+      "style": "Smooth Narration",
+      "tone": "smooth",
+      "weight": "normal",
+      "description": "Polished, smooth voice. Perfect for storytelling with emotion.",
+      "recommended": true,
+      "tags": ["storytelling", "smooth", "emotional", "youthful", "story-optimized"],
+      "best_for": "storytelling",
+      "settings": {
+        "speed": 0.98,
+        "tip": "Slightly slower for emotional impact. Let the voice breathe."
+      },
+      "storytelling": {
+        "speed": 0.93,
+        "description": "Smooth emotional — cinematic depth, dramatic beats",
+        "best_for": "emotional stories, drama, movie recaps"
+      },
+      "shorts": {
+        "speed": 1.10,
+        "description": "Smooth but snappy — keeps emotional weight in short form",
+        "best_for": "dramatic shorts, story time, emotional hooks"
+      }
+    },
+    {
+      "id": "am_fenrir",
+      "name": "Fenrir",
+      "language": "English",
+      "accent": "American",
+      "gender": "Male",
+      "style": "Powerful",
+      "tone": "resonant",
+      "weight": "heavy",
+      "description": "Strong, commanding voice for dramatic and impactful narration.",
+      "recommended": true,
+      "tags": ["dramatic", "powerful", "cinematic", "story-optimized"],
+      "best_for": "storytelling",
+      "settings": {
+        "speed": 0.95,
+        "tip": "Slower for dramatic weight. Let every word land."
+      },
+      "storytelling": {
+        "speed": 0.87,
+        "description": "Powerful cinematic — slow dramatic weight, gravitas",
+        "best_for": "movie recaps, horror stories, epic narratives"
+      },
+      "shorts": {
+        "speed": 1.02,
+        "description": "Commanding but fast — dramatic shorts impact",
+        "best_for": "horror shorts, dramatic reveals, cliffhangers"
+      }
+    },
+    {
+      "id": "am_michael",
+      "name": "Michael",
+      "language": "English",
+      "accent": "American",
+      "gender": "Male",
+      "style": "Deep Narration",
+      "tone": "deep",
+      "weight": "heavy",
+      "description": "Rich, authoritative voice for documentaries and serious content.",
+      "recommended": true,
+      "tags": ["documentary", "authoritative", "deep", "story-optimized"],
+      "best_for": "storytelling",
+      "settings": {
+        "speed": 0.95,
+        "tip": "Slow, measured pace for authority and gravitas."
+      },
+      "storytelling": {
+        "speed": 0.85,
+        "description": "Documentary authority — measured, serious gravitas",
+        "best_for": "documentaries, true crime, historical stories"
+      },
+      "shorts": {
+        "speed": 1.0,
+        "description": "Deep and deliberate — serious shorts delivery",
+        "best_for": "true crime shorts, documentary clips, serious topics"
+      }
+    },
+    {
+      "id": "af_heart",
+      "name": "Heart",
+      "language": "English",
+      "accent": "American",
+      "gender": "Female",
+      "style": "Warm & Sweet",
+      "tone": "sweet",
+      "weight": "normal",
+      "description": "The default Kokoro voice. Warm, expressive, and naturally feminine.",
+      "recommended": true,
+      "tags": ["default", "warm", "sweet", "expressive", "best", "story-optimized"],
+      "best_for": "storytelling",
+      "settings": {
+        "speed": 1.0,
+        "tip": "Works great at default speed. Warm and engaging."
+      },
+      "storytelling": {
+        "speed": 0.98,
+        "description": "Sweet storyteller — warm, expressive emotion",
+        "best_for": "heartwarming stories, romance, personal narratives"
+      },
+      "shorts": {
+        "speed": 1.12,
+        "description": "Upbeat, engaging — hooks with warmth",
+        "best_for": "lifestyle shorts, feel-good content, story time"
+      }
+    },
+    {
+      "id": "af_bella",
+      "name": "Bella",
+      "language": "English",
+      "accent": "American",
+      "gender": "Female",
+      "style": "Clear & Elegant",
+      "tone": "elegant",
+      "weight": "light",
+      "description": "Clear, elegant voice with a polished tone. Great for narration.",
+      "recommended": true,
+      "tags": ["elegant", "clear", "narration", "youthful", "story-optimized"],
+      "best_for": "storytelling",
+      "settings": {
+        "speed": 1.0,
+        "tip": "Natural pace suits most content. Clean and polished."
+      },
+      "storytelling": {
+        "speed": 0.97,
+        "description": "Elegant narration — polished, cinematic feel",
+        "best_for": "audiobook style, luxury content, elegant stories"
+      },
+      "shorts": {
+        "speed": 1.11,
+        "description": "Clear and punchy — professional short-form",
+        "best_for": "fashion, lifestyle, premium brand shorts"
+      }
+    },
+    {
+      "id": "af_nicole",
+      "name": "Nicole",
+      "language": "English",
+      "accent": "American",
+      "gender": "Female",
+      "style": "Conversational",
+      "tone": "friendly",
+      "weight": "normal",
+      "description": "Friendly, approachable voice. Perfect for casual content and podcasts.",
+      "recommended": false,
+      "tags": ["casual", "friendly", "podcast", "shorts-optimized"],
+      "best_for": "shorts",
+      "settings": {
+        "speed": 1.05,
+        "tip": "Slightly faster for energetic feel. Natural and casual."
+      },
+      "storytelling": {
+        "speed": 1.03,
+        "description": "Friendly storyteller — podcast-style narration",
+        "best_for": "podcast clips, casual stories, conversational content"
+      },
+      "shorts": {
+        "speed": 1.18,
+        "description": "Energetic and casual — social media native",
+        "best_for": "TikTok, casual shorts, trending content"
+      }
+    },
+    {
+      "id": "af_nova",
+      "name": "Nova",
+      "language": "English",
+      "accent": "American",
+      "gender": "Female",
+      "style": "Smooth & Modern",
+      "tone": "smooth",
+      "weight": "normal",
+      "description": "Modern, smooth voice with a contemporary feel.",
+      "recommended": false,
+      "tags": ["modern", "smooth", "contemporary", "shorts-optimized"],
+      "best_for": "shorts",
+      "settings": {
+        "speed": 1.0,
+        "tip": "Natural pace. Modern and fresh."
+      },
+      "storytelling": {
+        "speed": 0.97,
+        "description": "Modern smooth — contemporary narration style",
+        "best_for": "modern stories, tech content, contemporary narratives"
+      },
+      "shorts": {
+        "speed": 1.12,
+        "description": "Trendy and fresh — Gen-Z friendly delivery",
+        "best_for": "trend shorts, tech reviews, modern lifestyle"
+      }
+    },
+    {
+      "id": "af_sarah",
+      "name": "Sarah",
+      "language": "English",
+      "accent": "American",
+      "gender": "Female",
+      "style": "Professional",
+      "tone": "crisp",
+      "weight": "normal",
+      "description": "Professional, clear voice ideal for business and educational content.",
+      "recommended": false,
+      "tags": ["professional", "business", "educational", "shorts-optimized"],
+      "best_for": "shorts",
+      "settings": {
+        "speed": 1.0,
+        "tip": "Measured pace for clarity. Professional and clear."
+      },
+      "storytelling": {
+        "speed": 0.96,
+        "description": "Professional narrator — educational, clear",
+        "best_for": "educational content, business stories, case studies"
+      },
+      "shorts": {
+        "speed": 1.10,
+        "description": "Polished and clear — informative short-form",
+        "best_for": "business tips, educational shorts, news clips"
+      }
+    },
+    {
+      "id": "bf_emma",
+      "name": "Emma",
+      "language": "English",
+      "accent": "British",
+      "gender": "Female",
+      "style": "Refined",
+      "tone": "refined",
+      "weight": "normal",
+      "description": "Sophisticated British female voice for premium, elegant content.",
+      "recommended": true,
+      "tags": ["premium", "elegant", "british", "story-optimized"],
+      "best_for": "storytelling",
+      "settings": {
+        "speed": 1.0,
+        "tip": "Natural pace for refined British delivery."
+      },
+      "storytelling": {
+        "speed": 0.96,
+        "description": "Refined British — elegant audiobook narration",
+        "best_for": "British dramas, period stories, premium narratives"
+      },
+      "shorts": {
+        "speed": 1.08,
+        "description": "British sophistication — premium short content",
+        "best_for": "premium brand shorts, British culture, elegant reels"
+      }
+    },
+    {
+      "id": "bf_alice",
+      "name": "Alice",
+      "language": "English",
+      "accent": "British",
+      "gender": "Female",
+      "style": "Polished",
+      "tone": "polished",
+      "weight": "light",
+      "description": "Polished British voice for audiobooks and storytelling.",
+      "recommended": false,
+      "tags": ["audiobook", "storytelling", "british", "story-optimized"],
+      "best_for": "storytelling",
+      "settings": {
+        "speed": 1.0,
+        "tip": "Steady pace for reading. Immersive narration."
+      },
+      "storytelling": {
+        "speed": 0.97,
+        "description": "Polished audiobook — steady, immersive reading",
+        "best_for": "audiobooks, literary stories, classic narratives"
+      },
+      "shorts": {
+        "speed": 1.10,
+        "description": "Clean British — polished short-form delivery",
+        "best_for": "literary shorts, book reviews, British culture"
+      }
+    },
+    {
+      "id": "bm_george",
+      "name": "George",
+      "language": "English",
+      "accent": "British",
+      "gender": "Male",
+      "style": "Distinguished",
+      "tone": "refined",
+      "weight": "normal",
+      "description": "Sophisticated British voice for premium, elegant content.",
+      "recommended": true,
+      "tags": ["premium", "elegant", "british", "story-optimized"],
+      "best_for": "storytelling",
+      "settings": {
+        "speed": 1.0,
+        "tip": "Natural pace for refined delivery. Distinguished tone."
+      },
+      "storytelling": {
+        "speed": 0.96,
+        "description": "Distinguished British — premium documentary style",
+        "best_for": "BBC-style documentaries, historical stories, premium content"
+      },
+      "shorts": {
+        "speed": 1.08,
+        "description": "Sophisticated and snappy — premium shorts",
+        "best_for": "luxury brand shorts, history shorts, premium reels"
+      }
+    },
+    {
+      "id": "bm_lewis",
+      "name": "Lewis",
+      "language": "English",
+      "accent": "British",
+      "gender": "Male",
+      "style": "Professional",
+      "tone": "crisp",
+      "weight": "normal",
+      "description": "Clean, professional British voice for business and educational content.",
+      "recommended": false,
+      "tags": ["business", "professional", "british", "shorts-optimized"],
+      "best_for": "shorts",
+      "settings": {
+        "speed": 1.0,
+        "tip": "Clear, measured pace. Professional and polished."
+      },
+      "storytelling": {
+        "speed": 0.97,
+        "description": "Professional British — business/educational narration",
+        "best_for": "business case studies, educational content, professional stories"
+      },
+      "shorts": {
+        "speed": 1.10,
+        "description": "Clean and professional — informative shorts",
+        "best_for": "business tips, news shorts, professional reels"
+      }
+    }
+  ]
+}

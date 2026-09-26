@@ -1,0 +1,141 @@
+# ============================================================
+# Secrets & environment
+# ============================================================
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ============================================================
+# Large app data (44+ GB - never commit)
+# ============================================================
+backend/app/storage/
+backend/logs/
+
+# Databases / runtime state
+*.db
+*.db-shm
+*.db-wal
+backend/upload_tracker.json
+
+# ============================================================
+# Stock footage & generated media (866 MB+)
+# ============================================================
+videotemplate/
+*.mp4
+*.webm
+*.mov
+*.mkv
+*.avi
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.part
+
+# ============================================================
+# AI model weights (auto re-downloaded on first run)
+# ============================================================
+*.onnx
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.gguf
+*.bin
+models/
+.cache/
+hf_cache/
+
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ============================================================
+# Node
+# ============================================================
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ============================================================
+# Logs
+# ============================================================
+*.log
+*.out
+
+# ============================================================
+# One-off scratch / debug scripts (not part of the project)
+# ============================================================
+fix_*.py
+check_*.py
+feature_*.py
+test_kpipeline*.py
+debug_*.txt
+nul
+was
+*.backup
+
+# root-level throwaways
+/enhance_bot.py
+/generate_youthful_samples.py
+/optimize_liam.py
+/optimize_liam_final.py
+/test_voices.py
+/FEATURE_REPORT.md
+
+# backend-level throwaways
+/backend/add_gemini_client.py
+/backend/add_gemini_config.py
+/backend/clean_nvidia.py
+/backend/final_test.py
+/backend/install_cryptography.py
+/backend/model_test.py
+/backend/nvidia_client_fixed.py
+/backend/rewrite_method.py
+/backend/test2.py
+/backend/test_parse.py
+/backend/test_pipeline.py
+/backend/test_voice_quality.py
+/backend/test_vq.py
+/backend/verify_fixes.py
+/backend/2.5.0
+
+# ============================================================
+# IDE / editor
+# ============================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ============================================================
+# OS
+# ============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# Local tooling
+# ============================================================
+.opencode/
+
+# ============================================================
+# Release packaging output (scripts/pack-data.ps1)
+# ============================================================
+release-assets/
+_data/
