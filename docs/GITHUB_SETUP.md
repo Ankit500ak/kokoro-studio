@@ -14,17 +14,17 @@ your machine (or in a GitHub Release). This document explains:
 
 | Path | Size | In git? | Where it comes from |
 |---|---|---|---|
-| `backend/app/`, `frontend/src/`, scripts, docs | ~1.2 MB | ✅ | this repo |
-| `backend/.env` | KB | ❌ | copy from `backend/.env.example` and fill in |
-| `backend/venv/` | 1.5 GB | ❌ | `setup.bat` |
-| `frontend/node_modules/`, `frontend/dist/` | ~400 MB | ❌ | `setup.bat` |
-| TTS model weights (Kokoro-82M + espeak) | ~0.5 GB | ❌ | auto-download on first synthesis |
-| `backend/app/storage/media/` | 7 GB | ❌ | your video library — Release asset or manual copy |
-| `backend/app/storage/renders/` | 35 GB | ❌ | generated output — **regenerate, never back up** |
-| `backend/app/storage/audio/` | 1.7 GB | ❌ | generated TTS WAVs — regeneratable |
-| `backend/app/storage/kokoro.db` | ~8 MB | ❌ | auto-created on first start (or restore from Release) |
-| `videotemplate/` | 866 MB | ❌ | template clips — Release asset or manual copy |
-| `.opencode/`, `*.log`, `nul`, scratch `fix_*.py` | — | ❌ | local junk, intentionally ignored |
+| `backend/app/`, `frontend/src/`, scripts, docs | ~1.2 MB | âœ… | this repo |
+| `backend/.env` | KB | âŒ | copy from `backend/.env.example` and fill in |
+| `backend/venv/` | 1.5 GB | âŒ | `setup.bat` |
+| `frontend/node_modules/`, `frontend/dist/` | ~400 MB | âŒ | `setup.bat` |
+| TTS model weights (Kokoro-82M + espeak) | ~0.5 GB | âŒ | auto-download on first synthesis |
+| `backend/app/storage/media/` | 7 GB | âŒ | your video library â€” Release asset or manual copy |
+| `backend/app/storage/renders/` | 35 GB | âŒ | generated output â€” **regenerate, never back up** |
+| `backend/app/storage/audio/` | 1.7 GB | âŒ | generated TTS WAVs â€” regeneratable |
+| `backend/app/storage/kokoro.db` | ~8 MB | âŒ | auto-created on first start (or restore from Release) |
+| `videotemplate/` | 866 MB | âŒ | template clips â€” Release asset or manual copy |
+| `.opencode/`, `*.log`, `nul`, scratch `fix_*.py` | â€” | âŒ | local junk, intentionally ignored |
 
 `.gitignore` enforces all of this. If you add a new large data folder, add it there too.
 
@@ -33,7 +33,7 @@ your machine (or in a GitHub Release). This document explains:
 ## 2. First-time setup after cloning
 
 ```bat
-git clone https://github.com/heywinterbell/kokoro-studio.git
+git clone https://github.com/Ankit500ak/kokoro-studio.git
 cd kokoro-studio
 
 setup.bat                       :: creates backend\venv, pip install, npm install
@@ -47,14 +47,14 @@ start.bat                       :: backend :8000 + frontend :5174 + telegram bot
 Verify: http://localhost:5174 loads and http://localhost:8000/docs returns JSON.
 
 The app creates any missing folders (`backend/app/storage/*`, `backend/logs/`) on startup,
-so a fresh clone boots fine — it just has no media library and an empty database until
+so a fresh clone boots fine â€” it just has no media library and an empty database until
 you restore data.
 
 ---
 
 ## 3. Getting the large data
 
-### Option A — from an existing machine (simplest, no upload)
+### Option A â€” from an existing machine (simplest, no upload)
 
 Run from the **repo root on the new machine**, with the source path pointing at the old
 checkout:
@@ -75,16 +75,16 @@ robocopy "$src\backend\app\storage" "backend\app\storage" "kokoro.db*" /R:2 /W:2
 robocopy "$src\backend" "backend" .env
 ```
 
-Skip `renders\` and `audio\` on purpose — they are output, not source data.
+Skip `renders\` and `audio\` on purpose â€” they are output, not source data.
 
-### Option B — from a GitHub Release (fresh machine / another person)
+### Option B â€” from a GitHub Release (fresh machine / another person)
 
 ```powershell
 # list available data releases
-gh release list --repo heywinterbell/kokoro-studio
+gh release list --repo Ankit500ak/kokoro-studio
 
 # download every asset of the data release (~8 GB)
-gh release download data-v1 --repo heywinterbell/kokoro-studio --dir _data
+gh release download data-v1 --repo Ankit500ak/kokoro-studio --dir _data
 
 # unpack into the repo root (zips keep the real folder structure)
 Get-ChildItem _data\*.zip | ForEach-Object {
@@ -95,13 +95,13 @@ Remove-Item _data -Recurse -Force
 ```
 
 Or, without the GitHub CLI: open
-https://github.com/heywinterbell/kokoro-studio/releases → download the zips → extract each
+https://github.com/Ankit500ak/kokoro-studio/releases â†’ download the zips â†’ extract each
 one **into the repo root** (`kokoro-studio/`), so `media/` lands in
 `backend/app\storage\media\` etc.
 
 After restoring, restart the backend so it re-scans the media library.
 
-### Option C — models (nothing to do)
+### Option C â€” models (nothing to do)
 
 Kokoro weights are pulled from Hugging Face by the `kokoro` pip package on the **first
 synthesis** and cached in `%USERPROFILE%\.cache\huggingface\hub`. Expect a one-off
@@ -111,7 +111,7 @@ download (~0.5 GB) and a slow first generation. To pre-warm:
 backend\venv\Scripts\python -c "from kokoro import KPipeline; KPipeline(lang_code='a')"
 ```
 
-> FFmpeg must also be installed separately (see README) — it is not bundled.
+> FFmpeg must also be installed separately (see README) â€” it is not bundled.
 
 ---
 
@@ -121,7 +121,7 @@ backend\venv\Scripts\python -c "from kokoro import KPipeline; KPipeline(lang_cod
 
 - Each release asset must be **< 2 GiB** (GitHub hard limit).
 - There is **no limit** on total release size or download bandwidth.
-- Up to 1000 assets per release — one release holds all of this data.
+- Up to 1000 assets per release â€” one release holds all of this data.
 - Stop the backend before packing the database so `kokoro.db` is not mid-write.
 
 ```powershell
@@ -145,13 +145,13 @@ scripts\pack-data.ps1 -Tag data-v1 -MaxPartMB 1000
 scripts\pack-data.ps1 -Tag data-v2 -Upload
 ```
 
-Zips are written to `release-assets/` which is **gitignored** — they never enter the repo.
+Zips are written to `release-assets/` which is **gitignored** â€” they never enter the repo.
 Re-running with the same `-Tag` overwrites existing assets (`gh release upload --clobber`).
 
 To add a note or edit later:
 
 ```powershell
-gh release edit data-v1 --repo heywinterbell/kokoro-studio --notes "Media library snapshot 2026-09-26"
+gh release edit data-v1 --repo Ankit500ak/kokoro-studio --notes "Media library snapshot 2026-09-26"
 ```
 
 ---
@@ -202,7 +202,7 @@ git filter-repo --path "backend/app/storage" --invert-paths
 # (install first: pip install git-filter-repo)
 ```
 
-Git will reject individual files over **100 MB** and warns over 50 MB — that is your last
+Git will reject individual files over **100 MB** and warns over 50 MB â€” that is your last
 line of defence, don't rely on it.
 
 ---
@@ -215,10 +215,10 @@ line of defence, don't rely on it.
 | `backend/app/storage/**` | 44 GB user data & output |
 | `videotemplate/**` | 866 MB licensed/stock footage |
 | `venv/`, `node_modules/`, `dist/` | reproducible from `setup.bat` |
-| model weights (`*.onnx`, `*.safetensors`, `*.pt`, …) | auto re-downloaded |
+| model weights (`*.onnx`, `*.safetensors`, `*.pt`, â€¦) | auto re-downloaded |
 | YouTube OAuth tokens (from the DB) | stored encrypted in `kokoro.db`, which is ignored |
 
-`.env.example` is the template that **is** committed — keep it in sync whenever you add a
+`.env.example` is the template that **is** committed â€” keep it in sync whenever you add a
 new setting.
 
 ---
@@ -227,10 +227,10 @@ new setting.
 
 | Symptom | Fix |
 |---|---|
-| Frontend loads, API calls 404 | backend not running → `start-backend.bat` |
+| Frontend loads, API calls 404 | backend not running â†’ `start-backend.bat` |
 | "port 8000 already in use" | `start-backend.bat` kills only that port's PID; or find it: `netstat -ano \| findstr :8000` |
-| Empty media library | restore data (§3) then use **Media → Scan directory** in the UI, or `backend\venv\Scripts\python backend\import_videos.py` |
-| First TTS call hangs for minutes | normal — model download. Pre-warm with the command in §3 Option C |
+| Empty media library | restore data (Â§3) then use **Media â†’ Scan directory** in the UI, or `backend\venv\Scripts\python backend\import_videos.py` |
+| First TTS call hangs for minutes | normal â€” model download. Pre-warm with the command in Â§3 Option C |
 | `cryptography` / `dotenv` import errors | `backend\venv\Scripts\pip install -r backend\requirements.txt` |
 | Git is tracking a file it shouldn't | `git rm --cached <file>`, add it to `.gitignore`, commit |
-| Release upload fails at ~2 GB | a part is too big — repack with `-MaxPartMB 1900` or lower |
+| Release upload fails at ~2 GB | a part is too big â€” repack with `-MaxPartMB 1900` or lower |

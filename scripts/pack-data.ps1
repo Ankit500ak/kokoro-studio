@@ -148,14 +148,14 @@ if ($Upload) {
     Write-Host "`nPublishing release '$Tag'..."
     $env:GH_PROMPT_DISABLED = 1
     $notes = "Large local data for Kokoro Studio (media library, template clips, database). Download and extract to the repo root - see docs/GITHUB_SETUP.md."
-    gh release view $Tag --repo heywinterbell/kokoro-studio > $null 2>&1
+    gh release view $Tag --repo Ankit500ak/kokoro-studio > $null 2>&1
     if ($LASTEXITCODE -eq 0) {
-        gh release upload $Tag $assets.FullName --repo heywinterbell/kokoro-studio --clobber
+        gh release upload $Tag $assets.FullName --repo Ankit500ak/kokoro-studio --clobber
     } else {
-        gh release create $Tag $assets.FullName --repo heywinterbell/kokoro-studio --title $ReleaseName --notes $notes
+        gh release create $Tag $assets.FullName --repo Ankit500ak/kokoro-studio --title $ReleaseName --notes $notes
     }
     if ($LASTEXITCODE -ne 0) { throw "Publishing to GitHub failed" }
-    Write-Host "Published: https://github.com/heywinterbell/kokoro-studio/releases/tag/$Tag"
+    Write-Host "Published: https://github.com/Ankit500ak/kokoro-studio/releases/tag/$Tag"
 } else {
     Write-Host "`nNext steps:"
     Write-Host "  gh release create $Tag " + (($assets | ForEach-Object FullName) -join ' ')
