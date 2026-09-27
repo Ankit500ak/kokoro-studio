@@ -1,10 +1,12 @@
 """
 Story Forge API
-Endpoints for the 10-stage hooking story generation pipeline.
+Endpoints for the story generation pipeline (stages 1-12).
 """
 import logging
 import asyncio
+import re
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -17,9 +19,9 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/forge", tags=["story-forge"])
 
 
-# ─────────────────────────────────────────────────────
+#─────────────────────────────────────────────────────
 # Request / Response schemas
-# ─────────────────────────────────────────────────────
+#─────────────────────────────────────────────────────
 
 class StartPipelineRequest(BaseModel):
     theme: str = Field(..., min_length=2, max_length=200, description="Theme or topic for the story")
@@ -67,6 +69,29 @@ class BeatResponse(BaseModel):
     emotion: str
     micro_hook: str
 
+class AudienceResponse(BaseModel):
+    persona: str = ""
+    age_range: str = ""
+    gender_skew: str = ""
+    interests: list[str] = []
+    why_they_watch: str = ""
+    best_posting_window: str = ""
+
+class ThumbnailResponse(BaseModel):
+    headline: str = ""
+    subline: str = ""
+    badge: str = ""
+    image_path: str = ""
+
+class PublishPackResponse(BaseModel):
+    titles: list[str] = []
+    selected_title: str = ""
+    description: str = ""
+    tags: list[str] = []
+    hashtags: list[str] = []
+    audience: AudienceResponse = AudienceResponse()
+    thumbnail: ThumbnailResponse = ThumbnailResponse()
+
 class FullResultResponse(BaseModel):
     session_id: str
     theme: str
@@ -89,9 +114,34 @@ class FullResultResponse(BaseModel):
     final_script: str = ""
     word_count: int = 0
     estimated_duration: float = 0
+    publish_pack: Optional[PublishPackResponse] = None
     current_stage: int = 0
     completed_stages: list[int] = []
     errors: list[str] = []
+
+
+def _pack_to_response(pack) -> PublishPackResponse:
+    return PublishPackResponse(
+        titles=list(pack.titles),
+        selected_title=pack.selected_title,
+        description=pack.description,
+        tags=list(pack.tags),
+        hashtags=list(pack.hashtags),
+        audience=AudienceResponse(
+            persona=pack.audience.persona,
+            age_range=pack.audience.age_range,
+            gender_skew=pack.audience.gender_skew,
+            interests=list(pack.audience.interests),
+            why_they_watch=pack.audience.why_they_watch,
+            best_posting_window=pack.audience.best_posting_window,
+        ),
+        thumbnail=ThumbnailResponse(
+            headline=pack.thumbnail.headline,
+            subline=pack.thumbnail.subline,
+            badge=pack.thumbnail.badge,
+            image_path=pack.thumbnail.image_path,
+        ),
+    )
 
 
 def _result_to_response(result: PipelineResult) -> FullResultResponse:
@@ -161,15 +211,18 @@ def _result_to_response(result: PipelineResult) -> FullResultResponse:
         final_script=result.final_script,
         word_count=result.word_count,
         estimated_duration=result.estimated_duration,
+        publish_pack=(
+            _pack_to_response(result.publish_pack) if result.publish_pack else None
+        ),
         current_stage=result.current_stage,
         completed_stages=result.completed_stages,
         errors=result.errors,
     )
 
 
-# ─────────────────────────────────────────────────────
+#─────────────────────────────────────────────────────
 # Endpoints
-# ─────────────────────────────────────────────────────
+#─────────────────────────────────────────────────────
 
 @router.post("/start", response_model=StageResponse)
 async def start_pipeline(req: StartPipelineRequest):
@@ -290,7 +343,7 @@ async def quality_score(session_id: str):
 
 @router.post("/run-all", response_model=FullResultResponse)
 async def run_full_pipeline(req: StartPipelineRequest):
-    """Run all 10 stages in one click (full auto mode)."""
+    """Run every stage (1-12) in one click (full auto mode)."""
     try:
         result = await asyncio.wait_for(
             story_forge.run_full_pipeline(req.theme, target_duration=req.target_duration),
@@ -305,6 +358,43 @@ async def run_full_pipeline(req: StartPipelineRequest):
     except Exception as e:
         log.error(f"[StoryForge] Full pipeline failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/publish-pack/{session_id}", response_model=PublishPackResponse)
+async def regenerate_publish_pack(session_id: str):
+    """Stage 12 on demand: regenerate titles, description, tags, audience, thumbnail."""
+    if not story_forge.get_session(session_id):
+        raise HTTPException(status_code=404, detail="Session not found")
+    try:
+        result = await story_forge.stage_with_fallback(
+            session_id,
+            story_forge.stage_12_publish_pack,
+            "12_publish_pack",
+            fallback_strategy="hybrid",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        log.error(f"[StoryForge] Publish pack generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    if not result.publish_pack:
+        raise HTTPException(status_code=503, detail="Publish pack generation failed")
+    return _pack_to_response(result.publish_pack)
+
+
+@router.get("/publish-pack/{session_id}/thumbnail")
+async def get_publish_thumbnail(session_id: str):
+    """Serve the stage-12 thumbnail JPEG."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", session_id):
+        raise HTTPException(status_code=400, detail="Invalid session id")
+    path = settings.FORGE_THUMBS_DIR / f"{session_id}.jpg"
+    if not path.exists() or path.stat().st_size == 0:
+        raise HTTPException(status_code=404, detail="Thumbnail not generated yet")
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/used-themes")

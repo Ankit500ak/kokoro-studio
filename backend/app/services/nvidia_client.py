@@ -162,6 +162,44 @@ class NVIDIAClient:
                 "verdict": {"type": "string"},
             },
         },
+        "publish_pack": {
+            "type": "object",
+            "required": ["titles", "description", "tags", "hashtags", "audience", "thumbnail"],
+            "properties": {
+                "titles": {"type": "array", "minItems": 3},
+                "description": {"type": "string"},
+                "tags": {"type": "array", "minItems": 5},
+                "hashtags": {"type": "array", "minItems": 3},
+                "audience": {
+                    "type": "object",
+                    "required": [
+                        "persona",
+                        "age_range",
+                        "gender_skew",
+                        "interests",
+                        "why_they_watch",
+                        "best_posting_window",
+                    ],
+                    "properties": {
+                        "persona": {"type": "string"},
+                        "age_range": {"type": "string"},
+                        "gender_skew": {"type": "string"},
+                        "interests": {"type": "array"},
+                        "why_they_watch": {"type": "string"},
+                        "best_posting_window": {"type": "string"},
+                    },
+                },
+                "thumbnail": {
+                    "type": "object",
+                    "required": ["headline", "subline"],
+                    "properties": {
+                        "headline": {"type": "string"},
+                        "subline": {"type": "string"},
+                        "badge": {"type": "string"},
+                    },
+                },
+            },
+        },
     }
 
     def __init__(self):
@@ -1010,6 +1048,29 @@ class NVIDIAClient:
                 },
                 "suggestions": ["Quality scoring: AI failed, using default score"],
                 "verdict": "decent",
+            },
+            "publish_pack": {
+                "titles": [
+                    "You Won't Believe What They Found",
+                    "The Truth Came Out Weeks Later",
+                    "Nobody Expected This Ending",
+                ],
+                "description": "They thought nobody would ever notice. One detail changed everything. Watch till the end - the final reveal rewrites the whole story.\n\nSubscribe for more true story drama every week.",
+                "tags": ["storytime", "drama", "mystery", "viral", "plot twist", "revenge"],
+                "hashtags": ["#storytime", "#drama", "#plotwist", "#viral", "#shorts"],
+                "audience": {
+                    "persona": "Story listeners who watch emotional real-life drama to the end",
+                    "age_range": "18-34",
+                    "gender_skew": "slightly female",
+                    "interests": ["storytime", "drama", "relationships", "mystery"],
+                    "why_they_watch": "The unanswered question keeps them watching until the reveal",
+                    "best_posting_window": "Evenings 7-10pm",
+                },
+                "thumbnail": {
+                    "headline": "THEY HID IT FOR YEARS",
+                    "subline": "until the camera caught them",
+                    "badge": "TRUE STORY",
+                },
             },
         }
         return defaults.get(schema_key)

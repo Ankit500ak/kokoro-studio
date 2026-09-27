@@ -4,6 +4,7 @@ import {
   startPipeline, selectHook,
   generateDraft, retentionPass, qualityScore,
   runFullAuto, getSession, checkThemeDuplicate,
+  regeneratePublishPack, publishThumbnailUrl,
   type PipelineResult, type ColdOpenHook,
 } from '../lib/forgeApi'
 import { useToast } from './Toast'
@@ -12,7 +13,8 @@ import {
   TrendingUp, BarChart3, Loader2, Check,
   ChevronRight, Sparkles, Zap, Copy, Play,
   ToggleLeft, ToggleRight, Minimize2, Maximize2,
-  AlertTriangle, Clock,
+  AlertTriangle, Clock, Type, FileText, Hash,
+  Users, Image, RefreshCw,
 } from 'lucide-react'
 
 const STAGES = [
@@ -22,6 +24,7 @@ const STAGES = [
   { id: 4, name: 'Draft', icon: PenTool, color: 'text-purple-400' },
   { id: 5, name: 'Retain', icon: TrendingUp, color: 'text-green-400' },
   { id: 6, name: 'Score', icon: BarChart3, color: 'text-pink-400' },
+  { id: 12, name: 'Pack', icon: Type, color: 'text-cyan-400' },
 ]
 
 const DURATION_OPTIONS = [
@@ -66,6 +69,9 @@ export function StoryForgePanel() {
   const [isMinimized, setIsMinimized] = useState(false)
   const [themeDuplicate, setThemeDuplicate] = useState<{ is_used: boolean; message: string } | null>(null)
   const [targetDuration, setTargetDuration] = useState(120)
+  const [packLoading, setPackLoading] = useState(false)
+  const [thumbVersion, setThumbVersion] = useState(0)
+  const [selectedTitle, setSelectedTitle] = useState('')
 
   const runningRef = useRef(false)
   const timersRef = useRef<number[]>([])
@@ -166,6 +172,7 @@ export function StoryForgePanel() {
       { id: 5, name: 'Retention', fn: () => retentionPass(pipeline.session_id) },
       { id: 6, name: 'Quality', fn: () => qualityScore(pipeline.session_id) },
     ]
+    let stagesFailed = false
 
     for (const stage of stages) {
       if (stage.id < fromStage) continue
@@ -195,7 +202,21 @@ export function StoryForgePanel() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : `${stage.name} failed`
         toast.updateToast(toastId, { type: 'error', message: msg })
+        stagesFailed = true
         break
+      }
+    }
+
+    if (!stagesFailed) {
+      setLoadingStage(12)
+      setLoadingLabel('Building publish pack...')
+      try {
+        await regeneratePublishPack(pipeline.session_id)
+        const refreshed = await updatePipeline(pipeline.session_id)
+        setActiveStage(6)
+        if (refreshed.publish_pack) toast.success('Publish pack ready')
+      } catch {
+        // Publish pack is optional - keep the story either way.
       }
     }
 
@@ -285,7 +306,38 @@ export function StoryForgePanel() {
     }
   }, [pipeline, setText, toast, autoGenerate])
 
-  const completedCount = pipeline?.completed_stages?.length || 0
+  const pack = pipeline?.publish_pack
+  const sessionId = pipeline?.session_id ?? ''
+
+  useEffect(() => {
+    if (pack?.selected_title) setSelectedTitle(pack.selected_title)
+  }, [pack?.selected_title])
+
+  const handleRegeneratePack = useCallback(async () => {
+    if (!pipeline || packLoading) return
+    setPackLoading(true)
+    const toastId = toast.loading('Rebuilding publish pack...')
+    try {
+      const newPack = await regeneratePublishPack(pipeline.session_id)
+      setPipeline({ ...pipeline, publish_pack: newPack })
+      setSelectedTitle(newPack.selected_title)
+      setThumbVersion(Date.now())
+      toast.updateToast(toastId, { type: 'success', message: 'Publish pack rebuilt' })
+      scheduleRemove(toastId, 2000)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Publish pack failed'
+      toast.updateToast(toastId, { type: 'error', message: msg })
+    } finally {
+      setPackLoading(false)
+    }
+  }, [pipeline, packLoading, toast, scheduleRemove])
+
+  const copyText = useCallback((text: string, label: string) => {
+    navigator.clipboard.writeText(text)
+    toast.success(`${label} copied`)
+  }, [toast])
+
+  const uiStageCount = STAGES.filter((s) => pipeline?.completed_stages?.includes(s.id)).length
   const hooks = pipeline?.cold_hooks || []
   const arch = pipeline?.architecture || []
 
@@ -298,7 +350,7 @@ export function StoryForgePanel() {
         </div>
         <span className="text-xs font-semibold text-text-primary">Story Forge</span>
         {pipeline && (
-          <span className="text-[9px] text-text-muted ml-auto">{completedCount}/6 stages</span>
+          <span className="text-[9px] text-text-muted ml-auto">{uiStageCount}/{STAGES.length} stages</span>
         )}
         <button
           onClick={() => setIsMinimized(!isMinimized)}
@@ -657,6 +709,177 @@ export function StoryForgePanel() {
                     <Play size={10} /> Generate Speech
                   </button>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Stage 12: Publish Pack (titles, description, tags, audience, thumbnail) */}
+          {pack && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Type size={10} className="text-cyan-400" />
+                  <span className="text-[10px] font-semibold text-text-primary">Publish Pack</span>
+                </div>
+                <button
+                  onClick={handleRegeneratePack}
+                  disabled={packLoading || loading}
+                  className="text-[9px] text-accent hover:text-accent-hover flex items-center gap-0.5 disabled:opacity-40"
+                >
+                  {packLoading ? <Loader2 size={8} className="animate-spin" /> : <RefreshCw size={8} />}
+                  Regenerate
+                </button>
+              </div>
+
+              <div className="p-2 rounded-lg bg-surface/50 border border-border/30 space-y-2">
+                {/* Thumbnail + titles */}
+                <div className="flex gap-2">
+                  <div className="w-24 flex-shrink-0 space-y-1">
+                    <img
+                      src={publishThumbnailUrl(sessionId, thumbVersion)}
+                      alt="Thumbnail preview"
+                      className="w-full rounded border border-border/30 bg-surface"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = '0.3' }}
+                    />
+                    <button
+                      onClick={() => copyText(publishThumbnailUrl(sessionId, thumbVersion), 'Thumbnail URL')}
+                      className="w-full text-[8px] text-text-muted hover:text-accent transition-all"
+                    >
+                      Copy image URL
+                    </button>
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] font-semibold text-text-muted">Titles</span>
+                      <span className="text-[8px] text-text-muted">
+                        {selectedTitle.length}/100
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {pack.titles.map((title) => (
+                        <button
+                          key={title}
+                          onClick={() => setSelectedTitle(title)}
+                          className={`w-full text-left text-[9px] px-1.5 py-1 rounded border transition-all ${
+                            selectedTitle === title
+                              ? 'border-cyan-500/40 bg-cyan-500/10 text-text-primary'
+                              : 'border-border/30 text-text-muted hover:border-border hover:text-text-primary'
+                          }`}
+                        >
+                          {title}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => copyText(selectedTitle || pack.selected_title, 'Title')}
+                        className="flex-1 py-1 bg-accent/10 hover:bg-accent/20 text-accent text-[9px] font-medium rounded transition-all flex items-center justify-center gap-1"
+                      >
+                        <Copy size={8} /> Copy title
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-semibold text-text-muted flex items-center gap-1">
+                      <FileText size={8} /> Description
+                    </span>
+                    <button
+                      onClick={() => copyText(pack.description, 'Description')}
+                      className="text-[8px] text-accent hover:text-accent-hover flex items-center gap-0.5"
+                    >
+                      <Copy size={8} /> Copy
+                    </button>
+                  </div>
+                  <textarea
+                    readOnly
+                    value={pack.description}
+                    rows={5}
+                    className="w-full px-2 py-1.5 bg-surface border border-border/30 rounded text-[9px] text-text-primary leading-relaxed resize-none focus:outline-none custom-scrollbar"
+                  />
+                </div>
+
+                {/* Hashtags */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-semibold text-text-muted flex items-center gap-1">
+                      <Hash size={8} /> Hashtags
+                    </span>
+                    <button
+                      onClick={() => copyText(pack.hashtags.join(' '), 'Hashtags')}
+                      className="text-[8px] text-accent hover:text-accent-hover flex items-center gap-0.5"
+                    >
+                      <Copy size={8} /> Copy all
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {pack.hashtags.map((tag) => (
+                      <span key={tag} className="text-[8px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Search tags */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-semibold text-text-muted">YouTube Tags</span>
+                    <button
+                      onClick={() => copyText(pack.tags.join(', '), 'Tags')}
+                      className="text-[8px] text-accent hover:text-accent-hover flex items-center gap-0.5"
+                    >
+                      <Copy size={8} /> Copy all
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {pack.tags.map((tag) => (
+                      <span key={tag} className="text-[8px] px-1 py-px rounded bg-surface border border-border/30 text-text-muted">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Audience targeting */}
+                <div className="space-y-1.5 pt-1 border-t border-border/30">
+                  <span className="text-[9px] font-semibold text-text-muted flex items-center gap-1">
+                    <Users size={8} /> Viewer Targeting
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {pack.audience.age_range && (
+                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
+                        Age {pack.audience.age_range}
+                      </span>
+                    )}
+                    {pack.audience.gender_skew && (
+                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-400">
+                        {pack.audience.gender_skew}
+                      </span>
+                    )}
+                    {pack.audience.best_posting_window && (
+                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">
+                        {pack.audience.best_posting_window}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[9px] text-text-primary leading-relaxed">
+                    {pack.audience.persona}
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {pack.audience.interests.map((interest) => (
+                      <span key={interest} className="text-[7px] px-1 py-px rounded bg-blue-500/15 text-blue-400">
+                        {interest}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[8px] text-text-muted italic">
+                    Why they watch: {pack.audience.why_they_watch}
+                  </p>
+                </div>
               </div>
             </div>
           )}

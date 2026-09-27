@@ -40,6 +40,32 @@ export interface StoryBeat {
   micro_hook: string
 }
 
+export interface AudienceTarget {
+  persona: string
+  age_range: string
+  gender_skew: string
+  interests: string[]
+  why_they_watch: string
+  best_posting_window: string
+}
+
+export interface ThumbnailPlan {
+  headline: string
+  subline: string
+  badge: string
+  image_path: string
+}
+
+export interface PublishPack {
+  titles: string[]
+  selected_title: string
+  description: string
+  tags: string[]
+  hashtags: string[]
+  audience: AudienceTarget
+  thumbnail: ThumbnailPlan
+}
+
 export interface PipelineResult {
   session_id: string
   theme: string
@@ -62,6 +88,7 @@ export interface PipelineResult {
   final_script: string
   word_count: number
   estimated_duration: number
+  publish_pack: PublishPack | null
   current_stage: number
   completed_stages: number[]
   errors: string[]
@@ -162,6 +189,23 @@ export async function runFullPipeline(theme: string, targetDuration: number = 12
 
 export type StageProgressCallback = (stage: number, label: string) => void
 
+export async function regeneratePublishPack(sessionId: string): Promise<PublishPack> {
+  const res = await fetchWithTimeout(`${API_BASE}/forge/publish-pack/${sessionId}`, {
+    method: 'POST',
+    timeout: STAGE_TIMEOUT,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to build publish pack')
+  }
+  return res.json()
+}
+
+export function publishThumbnailUrl(sessionId: string, version?: number | string): string {
+  const bust = version != null ? `?v=${version}` : ''
+  return `${API_BASE}/forge/publish-pack/${sessionId}/thumbnail${bust}`
+}
+
 export async function checkThemeDuplicate(theme: string): Promise<{ is_used: boolean; message: string }> {
   const res = await fetchWithTimeout(`${API_BASE}/forge/check-theme`, {
     method: 'POST',
@@ -195,6 +239,7 @@ export async function runFullAuto(
     'Polishing voice...',
     'Final polish...',
     'Scoring quality...',
+    'Building publish pack...',
   ]
 
   // Stage 1-2: Start pipeline (classification + hooks)
@@ -224,6 +269,15 @@ export async function runFullAuto(
   onProgress(9, stageLabels[9])
   await qualityScore(result.session_id)
   result = await getSession(result.session_id)
+
+  // Stage 12: publish pack (titles, description, tags, audience, thumbnail)
+  try {
+    onProgress(10, stageLabels[10])
+    await regeneratePublishPack(result.session_id)
+    result = await getSession(result.session_id)
+  } catch {
+    // Publish pack is optional - return the story even if it failed.
+  }
 
   onProgress(0, 'Complete!')
   return result

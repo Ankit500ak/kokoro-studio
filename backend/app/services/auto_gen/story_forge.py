@@ -32,9 +32,10 @@ import uuid
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from ..nvidia_client import NVIDIAClient
+from ..thumbnail_engine import generate_thumbnail
 from ...core.config import settings
 from ..theme_tracker import is_theme_used, mark_theme_used
 
@@ -90,6 +91,35 @@ class StoryBeat:
 
 
 @dataclass
+class AudienceTarget:
+    persona: str = ""
+    age_range: str = ""
+    gender_skew: str = ""
+    interests: list[str] = field(default_factory=list)
+    why_they_watch: str = ""
+    best_posting_window: str = ""
+
+
+@dataclass
+class ThumbnailPlan:
+    headline: str = ""
+    subline: str = ""
+    badge: str = ""
+    image_path: str = ""  # filename inside settings.FORGE_THUMBS_DIR
+
+
+@dataclass
+class PublishPack:
+    titles: list[str] = field(default_factory=list)
+    selected_title: str = ""
+    description: str = ""
+    tags: list[str] = field(default_factory=list)
+    hashtags: list[str] = field(default_factory=list)
+    audience: AudienceTarget = field(default_factory=AudienceTarget)
+    thumbnail: ThumbnailPlan = field(default_factory=ThumbnailPlan)
+
+
+@dataclass
 class PipelineResult:
     session_id: str
     theme: str
@@ -124,6 +154,8 @@ class PipelineResult:
     final_script: str = ""
     word_count: int = 0
     estimated_duration: float = 0.0
+    # Stage 12
+    publish_pack: Optional[PublishPack] = None
     # Pipeline state
     current_stage: int = 0
     completed_stages: list[int] = field(default_factory=list)
@@ -1001,6 +1033,58 @@ HOOK FORMULAS (bonus 2 points each if used):
 
 Return ONLY this JSON format:
 {{"overall_score": 75, "breakdown": {{"hook_strength": 80, "pacing": 70, "emotional_impact": 75, "clarity": 85, "originality": 65, "memorability": 70}}, "suggestions": ["specific suggestion 1", "specific suggestion 2"], "verdict": "decent"}}"""
+
+
+PUBLISH_PACK_SYSTEM = """You are a YouTube publishing strategist for story channels. Turn the given story into a publish pack. Return ONLY a raw JSON object - no markdown, no prose, no code fences.
+
+JSON keys:
+- "titles": 4 titles, each at most 95 characters, no hashtags, curiosity-driven but specific to THIS story.
+- "description": the YouTube description as plain text with blank lines between paragraphs: a hook paragraph, a spoiler-free summary, an engagement question, then a subscribe call to action.
+- "tags": 8-12 search tags, lowercase, no # prefix.
+- "hashtags": 5-7 hashtags with #, mixing broad (#storytime) and niche-specific ones.
+- "audience": object with keys:
+  - "persona": one sentence describing the ideal viewer as a real person
+  - "age_range": e.g. "18-34"
+  - "gender_skew": "male", "female", "slightly male", "slightly female" or "balanced"
+  - "interests": 4-6 interests that viewer has
+  - "why_they_watch": one sentence - the psychological reason this story hooks them
+  - "best_posting_window": e.g. "Weekdays 7-10pm"
+- "thumbnail": object with keys:
+  - "headline": 2-5 POWER WORDS in CAPS, at most 24 characters - the visual punch line
+  - "subline": a lowercase tease at most 40 characters, DIFFERENT from the headline (a supporting detail, not a rewording)
+  - "badge": short category badge in CAPS, at most 12 characters (e.g. "TRUE STORY")
+
+Rules:
+- The 4 titles must be different angles of the same story.
+- Be specific to the story; never rely on generic clickbait alone.
+- Write for the audience you declare in the "audience" object."""
+
+
+def _clip_text(text: str, limit: int) -> str:
+    """Trim to limit characters, preferring a whole word over a cut one."""
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(",.;: ")
+    return cut or text[:limit].rstrip()
+
+
+def _niche_for_category(category: str) -> str:
+    """Map a StoryForge hook category onto a thumbnail_engine niche style."""
+    c = (category or "").lower()
+    if any(k in c for k in ("creepy", "supernatural", "horror", "glitch")):
+        return "horror"
+    if any(k in c for k in ("mystery", "investigation", "scam", "survival", "crime")):
+        return "true_crime"
+    if any(k in c for k in ("aita", "moral", "identity", "internet", "dating")):
+        return "psychology"
+    if any(k in c for k in ("family", "childhood", "wholesome", "second")):
+        return "motivation"
+    if any(k in c for k in ("time_based", "update", "escalation")):
+        return "history"
+    if any(k in c for k in ("workplace", "money", "inheritance", "revenge")):
+        return "finance"
+    return "psychology"
 
 
 TENSE_ENFORCEMENT_SYSTEM = """Convert ALL verbs in this script to PAST TENSE.
@@ -2019,6 +2103,282 @@ class StoryForgePipeline:
 
         return result
 
+    async def stage_12_publish_pack(self, session_id: str) -> PipelineResult:
+        """Stage 12: titles, description, tags, audience targeting, thumbnail."""
+        result = self.sessions.get(session_id)
+        if not result:
+            raise ValueError("Session not found")
+        if not result.final_script:
+            raise ValueError("Final script must exist before publish pack")
+
+        result.current_stage = 12
+        log.info("[StoryForge] Stage 12: Publish Pack")
+
+        classification = result.classification
+        category = classification.category if classification else "Mystery"
+        tone = classification.tone if classification else ""
+        audience_hint = (
+            classification.target_audience if classification else "general"
+        )
+        hook_text = result.selected_hook.text if result.selected_hook else ""
+
+        words = result.final_script.split()
+        if len(words) > 900:
+            sample = (
+                " ".join(words[:600])
+                + "\n...\n"
+                + " ".join(words[-300:])
+            )
+        else:
+            sample = result.final_script
+
+        user_prompt = (
+            f"Story theme: {result.theme}\n"
+            f"Category: {category} | Tone: {tone} | Audience hint: {audience_hint}\n"
+            f"Target duration: {result.target_duration}s\n"
+            f"Selected hook: {hook_text}\n\n"
+            f"Story:\n{sample}"
+        )
+
+        response = None
+        try:
+            response = await self.client.generate_structured(
+                system_prompt=PUBLISH_PACK_SYSTEM,
+                user_prompt=user_prompt,
+                schema_key="publish_pack",
+                temperature=0.8,
+                max_tokens=2000,
+            )
+        except Exception as e:
+            log.error(f"[StoryForge] Stage 12: AI call failed: {e}")
+
+        result.publish_pack = self._normalize_publish_pack(response, result)
+        self._render_publish_thumbnail(result)
+
+        if not result.publish_pack.titles:
+            result.errors.append("12_publish_pack: no titles generated")
+
+        result.completed_stages.append(12)
+        result.current_stage = 12
+        return result
+
+    # ─────────────────────────────────────────────────
+    # Publish pack helpers (Stage 12)
+    # ─────────────────────────────────────────────────
+
+    def _fallback_publish_pack(self, result: PipelineResult) -> PublishPack:
+        """Deterministic publish pack used when the AI call fails."""
+        theme = (result.theme or "").strip()
+        classification = result.classification
+        category = classification.category if classification else "Mystery"
+        audience_hint = (
+            classification.target_audience if classification else "general"
+        )
+        sub_category = classification.sub_category if classification else ""
+        hook = result.selected_hook.text if result.selected_hook else ""
+
+        short_theme = theme[:78].rstrip(",. ")
+        titles: list[str] = []
+        for candidate in (
+            theme[:95],
+            hook[:95],
+            f"The Truth About {short_theme}",
+            f"What Really Happened: {short_theme}",
+            f"{short_theme} - The Full Story",
+        ):
+            cleaned = _clip_text(candidate.strip().strip('"'), 95)
+            if cleaned and cleaned.lower() not in {t.lower() for t in titles}:
+                titles.append(cleaned)
+            if len(titles) == 4:
+                break
+
+        description = (
+            f"{hook or theme}\n\n"
+            f"{theme} - told the way it actually happened, with every detail "
+            "that matters kept in.\n\n"
+            "Have you ever seen something like this? Tell me what you would "
+            "have done in the comments.\n\n"
+            "Like and subscribe for more true story videos every week."
+        )
+
+        category_tags = [
+            w.lower()
+            for w in re.findall(r"[A-Za-z]{4,}", category)
+        ][:3]
+        tags = list(
+            dict.fromkeys(
+                category_tags
+                + ["storytime", "true story", "drama", "viral", "narration", "youtube shorts"]
+            )
+        )[:12]
+
+        hashtags = ["#storytime", "#truestory", "#drama", "#viral"]
+        if category:
+            hashtags.append(
+                "#" + re.sub(r"[^A-Za-z0-9]", "", category.split("/")[0])[:20].lower()
+            )
+        if result.target_duration <= 180:
+            hashtags.append("#shorts")
+
+        stop = {
+            "i", "my", "a", "an", "the", "of", "and", "to", "in", "on", "for",
+            "was", "were", "is", "it", "that", "with", "at", "by", "from",
+            "but", "or", "me", "we", "our", "they", "their", "he", "she",
+            "his", "her", "when", "after", "before", "into", "out",
+        }
+        key_words = [
+            w for w in re.findall(r"[A-Za-z']+", theme) if w.lower() not in stop
+        ]
+        headline = " ".join(key_words[:4]).upper()[:24].strip()
+        if not headline:
+            headline = (theme.split()[0] if theme.split() else "STORY").upper()[:24]
+
+        badge_source = category.split("/")[0] if category else "True Story"
+        badge = _clip_text(re.sub(r"[^A-Za-z ]", " ", badge_source).strip().upper(), 12)
+        subline = _clip_text(sub_category or "watch what happens", 40)
+
+        return PublishPack(
+            titles=titles,
+            selected_title=titles[0] if titles else "",
+            description=description,
+            tags=tags,
+            hashtags=list(dict.fromkeys(hashtags))[:7],
+            audience=AudienceTarget(
+                persona=(
+                    f"Viewers who follow {category.lower()} stories about "
+                    f"\"{theme[:60]}\""
+                ),
+                age_range="18-34",
+                gender_skew="balanced",
+                interests=list(
+                    dict.fromkeys(
+                        [
+                            category.lower().replace("/", " "),
+                            audience_hint.replace("_", " "),
+                            "storytime",
+                            "viral videos",
+                        ]
+                    )
+                )[:5],
+                why_they_watch=(
+                    "They want to know how it ends and whether they would have "
+                    "done the same"
+                ),
+                best_posting_window="Evenings 7-10pm",
+            ),
+            thumbnail=ThumbnailPlan(headline=headline, subline=subline, badge=badge),
+        )
+
+    def _normalize_publish_pack(
+        self, response: Any, result: PipelineResult
+    ) -> PublishPack:
+        """Merge the AI response into a complete pack; defaults fill any gap."""
+        pack = self._fallback_publish_pack(result)
+        if not isinstance(response, dict):
+            return pack
+
+        raw_titles = response.get("titles")
+        if isinstance(raw_titles, list):
+            titles: list[str] = []
+            for t in raw_titles:
+                cleaned = str(t).strip().strip('"').replace("#", "").strip()
+                cleaned = _clip_text(cleaned, 95)
+                if cleaned and cleaned.lower() not in {x.lower() for x in titles}:
+                    titles.append(cleaned)
+                if len(titles) == 5:
+                    break
+            if titles:
+                pack.titles = titles
+                pack.selected_title = titles[0]
+
+        description = response.get("description")
+        if isinstance(description, str) and len(description.strip()) > 40:
+            pack.description = NVIDIAClient._strip_markdown_fences(description).strip()
+
+        for key, cap in (("tags", 12), ("hashtags", 7)):
+            raw = response.get(key)
+            if isinstance(raw, list):
+                cleaned_list: list[str] = []
+                for item in raw:
+                    text = str(item).strip()
+                    if not text:
+                        continue
+                    if key == "tags":
+                        text = text.lstrip("#").lower()
+                    elif not text.startswith("#"):
+                        text = "#" + text.lstrip("#")
+                    if text and text.lower() not in {x.lower() for x in cleaned_list}:
+                        cleaned_list.append(text)
+                    if len(cleaned_list) == cap:
+                        break
+                if cleaned_list:
+                    if key == "hashtags" and result.target_duration <= 180:
+                        if "#shorts" not in {h.lower() for h in cleaned_list}:
+                            cleaned_list.append("#shorts")
+                    setattr(pack, key, cleaned_list)
+
+        raw_audience = response.get("audience")
+        if isinstance(raw_audience, dict):
+            for field_name in (
+                "persona",
+                "age_range",
+                "gender_skew",
+                "why_they_watch",
+                "best_posting_window",
+            ):
+                value = raw_audience.get(field_name)
+                if isinstance(value, str) and value.strip():
+                    setattr(pack.audience, field_name, value.strip()[:300])
+            interests = raw_audience.get("interests")
+            if isinstance(interests, list):
+                cleaned_interests = [
+                    str(i).strip().lower() for i in interests if str(i).strip()
+                ][:6]
+                if cleaned_interests:
+                    pack.audience.interests = cleaned_interests
+
+        raw_thumbnail = response.get("thumbnail")
+        if isinstance(raw_thumbnail, dict):
+            headline = raw_thumbnail.get("headline")
+            if isinstance(headline, str) and headline.strip():
+                pack.thumbnail.headline = _clip_text(headline, 24).upper()
+            subline = raw_thumbnail.get("subline")
+            if isinstance(subline, str) and subline.strip():
+                pack.thumbnail.subline = _clip_text(subline, 40)
+            badge = raw_thumbnail.get("badge")
+            if isinstance(badge, str) and badge.strip():
+                pack.thumbnail.badge = _clip_text(badge, 12).upper()
+
+        if not pack.selected_title and pack.titles:
+            pack.selected_title = pack.titles[0]
+        return pack
+
+    def _render_publish_thumbnail(self, result: PipelineResult) -> None:
+        """Render the stage-12 thumbnail into settings.FORGE_THUMBS_DIR."""
+        pack = result.publish_pack
+        if not pack:
+            return
+        try:
+            classification = result.classification
+            category = classification.category if classification else "Mystery"
+            niche = _niche_for_category(category)
+            out_path = settings.FORGE_THUMBS_DIR / f"{result.session_id}.jpg"
+            generate_thumbnail(
+                video_path=None,
+                title=pack.thumbnail.headline or result.theme[:40],
+                niche=niche,
+                output_path=str(out_path),
+                subtitle=pack.thumbnail.subline or None,
+            )
+            if out_path.exists() and out_path.stat().st_size > 0:
+                pack.thumbnail.image_path = out_path.name
+                log.info(f"[StoryForge] Stage 12: thumbnail written ({niche})")
+            else:
+                result.errors.append("12_publish_pack: thumbnail render produced no file")
+        except Exception as e:
+            log.warning(f"[StoryForge] Stage 12: thumbnail render failed: {e}")
+            result.errors.append(f"12_publish_pack: thumbnail render failed: {e}")
+
     async def stage_with_fallback(
         self,
         session_id: str,
@@ -2049,6 +2409,7 @@ class StoryForgePipeline:
             "9_final_polish": 9,
             "10_quality_scoring": 10,
             "11_dynamic_enhancement": 11,
+            "12_publish_pack": 12,
         }.get(stage_name, 0)
 
         def mark_stage_complete() -> None:
@@ -2210,6 +2571,12 @@ class StoryForgePipeline:
                     result.errors.append(
                         f"{stage_name}: AI failure, stopping enhancements"
                     )
+                elif stage_name == "12_publish_pack":
+                    result.publish_pack = self._fallback_publish_pack(result)
+                    self._render_publish_thumbnail(result)
+                    result.errors.append(
+                        f"{stage_name}: AI failure, using pattern publish pack"
+                    )
                 mark_stage_complete()
                 return result
 
@@ -2322,6 +2689,12 @@ class StoryForgePipeline:
                 result.errors.append(f"{stage_name}: AI failure, using default scoring")
             elif stage_name == "11_dynamic_enhancement":
                 result.errors.append(f"{stage_name}: AI failure, stopping enhancements")
+            elif stage_name == "12_publish_pack":
+                result.publish_pack = self._fallback_publish_pack(result)
+                self._render_publish_thumbnail(result)
+                result.errors.append(
+                    f"{stage_name}: AI failure, using pattern publish pack"
+                )
             mark_stage_complete()
             return result
 
@@ -2423,6 +2796,14 @@ class StoryForgePipeline:
         )
         result.word_count = len(result.final_script.split())
         result.estimated_duration = round(result.word_count / 3.0, 1)
+
+        if settings.STORY_ENABLE_PUBLISH_PACK:
+            result = await self.stage_with_fallback(
+                result.session_id,
+                self.stage_12_publish_pack,
+                "12_publish_pack",
+                fallback_strategy="hybrid",
+            )
 
         self.mark_session_completed(result.session_id)
         return result

@@ -140,7 +140,7 @@ def _get_font(size, bold=True):
 
 
 def _extract_frame(video_path, time_sec=None):
-    if not os.path.exists(video_path):
+    if not video_path or not os.path.exists(video_path):
         return None
     if time_sec is None:
         try:

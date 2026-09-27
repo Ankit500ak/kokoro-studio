@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     MEDIA_DIR: Path = STORAGE_DIR / "media"
     RENDER_DIR: Path = STORAGE_DIR / "renders"
     TUNING_DIR: Path = STORAGE_DIR / "tuning"
+    FORGE_THUMBS_DIR: Path = STORAGE_DIR / "forge_thumbs"
 
     DEFAULT_VOICE: str = "am_adam"
     DEFAULT_SPEED: float = 1.0
@@ -42,6 +43,8 @@ class Settings(BaseSettings):
     STORY_PIPELINE_TIMEOUT: float = 1800.0
     STORY_STAGE_TIMEOUT: float = 240.0
     STORY_ENABLE_ENHANCEMENT: bool = False
+    # Stage 12: titles / description / tags / audience / thumbnail pack.
+    STORY_ENABLE_PUBLISH_PACK: bool = True
 
     YOUTUBE_CLIENT_ID: str = ""
     YOUTUBE_CLIENT_SECRET: str = ""
@@ -84,3 +87,4 @@ settings.PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
 settings.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 settings.RENDER_DIR.mkdir(parents=True, exist_ok=True)
 settings.TUNING_DIR.mkdir(parents=True, exist_ok=True)
+settings.FORGE_THUMBS_DIR.mkdir(parents=True, exist_ok=True)
