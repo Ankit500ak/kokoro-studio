@@ -60,6 +60,9 @@ def _migrate_db():
         if "video_folder" not in columns:
             cursor.execute("ALTER TABLE render_jobs ADD COLUMN video_folder VARCHAR")
             log.info("Migration: added video_folder column to render_jobs")
+        if "target_duration" not in columns:
+            cursor.execute("ALTER TABLE render_jobs ADD COLUMN target_duration FLOAT")
+            log.info("Migration: added target_duration column to render_jobs")
         conn.commit()
     except Exception as e:
         log.warning(f"Migration skipped: {e}")

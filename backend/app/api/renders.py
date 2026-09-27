@@ -62,6 +62,7 @@ async def create_render_job(req: RenderJobCreate, background_tasks: BackgroundTa
         project_id=req.project_id,
         generated_audio_id=req.generated_audio_id,
         video_folder=",".join(req.video_folders) if req.video_folders else None,
+        target_duration=req.target_duration,
         status="queued",
     )
     db.add(job)
@@ -200,6 +201,10 @@ async def delete_render_job(job_id: str, db: Session = Depends(get_db)):
     ass_path = settings.RENDER_DIR / f"{job_id}.ass"
     if ass_path.exists():
         files_to_delete.append(ass_path)
+
+    ffmpeg_log = settings.RENDER_DIR / f"{job_id}.ffmpeg.log"
+    if ffmpeg_log.exists():
+        files_to_delete.append(ffmpeg_log)
 
     # Also clean up subdirectory if it exists and is empty
     subdir = settings.RENDER_DIR / job_id

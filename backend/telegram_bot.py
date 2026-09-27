@@ -57,6 +57,36 @@ DEFAULT_VIDEO_FOLDERS = [
 # Max retry attempts for selecting an unused theme
 MAX_THEME_RETRIES = 10
 
+# ── /horror: long-form urban-legend production ──
+HORROR_TARGET_DURATION = 480      # ~8 minute story target (forge bound: 60-600)
+HORROR_RENDER_DURATION = 600      # lift the 119s Shorts render cap to max
+HORROR_VOICE_MALE = os.getenv("HORROR_VOICE_MALE", "am_fenrir")
+HORROR_VOICE_FEMALE = os.getenv("HORROR_VOICE_FEMALE", "af_nicole")
+horror_running = False
+
+HORROR_THEMES = [
+    "the mirror in my apartment shows a room that is not mine",
+    "every night at 3am my doorbell camera records someone standing on my porch",
+    "the forest trail behind my town has a mile marker that counts down instead of up",
+    "my son keeps drawing the same tall figure that appears in our windows",
+    "the abandoned hospital on the edge of town has a light that turns on every midnight",
+    "the lake near my cabin takes one swimmer every summer and this year it chose me",
+    "I work night security in a mall and the mannequins change position when I look away",
+    "the old radio in my grandmother's attic tunes itself to a station that predicts deaths",
+    "my GPS rerouted me through a town that does not appear on any map",
+    "the hiking trail map warns never to answer if the trees call your name",
+    "I found a cassette tape labeled with tomorrow's date",
+    "the apartment upstairs has been empty for years but someone keeps flushing the toilet",
+    "every photo I take of my family has one extra person standing in the background",
+    "the lighthouse on the point flashes a pattern that spells out my name",
+    "my new smartwatch counts 1400 steps every night while I sleep",
+    "the neighbor's dog barks at my basement window even though I buried nothing there",
+    "every copy in the library has its final page torn out of one specific book",
+    "the elevator in my office building sometimes stops at a floor that does not exist",
+    "the town clock strikes thirteen every night and only I seem to hear it",
+    "I keep getting voicemails from my own number dated one week in the future",
+]
+
 
 def detect_lead_gender(script: str, theme: str = "") -> str:
     """
@@ -771,11 +801,11 @@ def progress_bar(percent, length=10):
     return f"[{'█' * filled}{'░' * (length - filled)}] {percent}%"
 
 
-def pick_unused_theme():
-    """Pick a random theme that has not been used before (via API dedup check)."""
-    candidates = list(PROMPTS)
-    random.shuffle(candidates)
-    for theme in candidates:
+def pick_unused_theme(candidates=None):
+    """Pick a random unused theme (via API dedup check) from a candidate pool."""
+    pool = list(candidates) if candidates else list(PROMPTS)
+    random.shuffle(pool)
+    for theme in pool:
         try:
             import urllib.request
 
@@ -791,7 +821,7 @@ def pick_unused_theme():
                     return theme
         except Exception:
             return theme
-    return random.choice(PROMPTS)
+    return random.choice(pool)
 
 
 async def api_post(path, data, timeout=600, retry_safe=True):
@@ -864,21 +894,23 @@ async def api_get_file(path, timeout=120):
             return await r.read()
 
 
-async def send_status(context, text):
-    if not AUTOPILOT_CHAT_ID:
+async def send_status(context, text, chat_id=None):
+    target = chat_id or AUTOPILOT_CHAT_ID
+    if not target:
         return
     try:
-        await context.bot.send_message(chat_id=int(AUTOPILOT_CHAT_ID), text=text)
+        await context.bot.send_message(chat_id=int(target), text=text)
     except Exception as e:
         log.error(f"Failed to send status: {e}")
 
 
-async def send_video_to_telegram(context, render_id, filename, hook, score, duration):
-    if not AUTOPILOT_CHAT_ID:
+async def send_video_to_telegram(context, render_id, filename, hook, score, duration, chat_id=None):
+    target_chat = chat_id or AUTOPILOT_CHAT_ID
+    if not target_chat:
         return
     temp_path = None
     try:
-        file_bytes = await api_get_file(f"/api/renders/{render_id}/file", timeout=120)
+        file_bytes = await api_get_file(f"/api/renders/{render_id}/file", timeout=300)
         temp_path = os.path.join(tempfile.gettempdir(), filename)
         with open(temp_path, "wb") as f:
             f.write(file_bytes)
@@ -891,7 +923,7 @@ async def send_video_to_telegram(context, render_id, filename, hook, score, dura
                 # read timeout than the per-call override on Windows.
                 with open(temp_path, "rb") as f:
                     form = aiohttp.FormData()
-                    form.add_field("chat_id", str(AUTOPILOT_CHAT_ID))
+                    form.add_field("chat_id", str(target_chat))
                     form.add_field("caption", caption)
                     form.add_field("supports_streaming", "true")
                     form.add_field(
@@ -939,7 +971,7 @@ async def send_video_to_telegram(context, render_id, filename, hook, score, dura
         )
         with open(temp_path, "rb") as f:
             form = aiohttp.FormData()
-            form.add_field("chat_id", str(AUTOPILOT_CHAT_ID))
+            form.add_field("chat_id", str(target_chat))
             form.add_field("caption", caption)
             form.add_field("document", f, filename=filename, content_type="video/mp4")
             timeout = aiohttp.ClientTimeout(
@@ -1040,7 +1072,7 @@ async def run_one_pipeline(context):
                 "use_enhancement": True,
                 "enhancement_level": "balanced",
             },
-            timeout=300,
+            timeout=600,
         )
 
         audio_id = tts_result.get("id", "")
@@ -1223,6 +1255,252 @@ async def run_one_pipeline(context):
         story_started_at.pop(theme, None)
 
 
+def format_publish_pack(pack) -> str:
+    """Build a Telegram-safe (<=4096 chars) publish-pack message."""
+    if not pack:
+        return "PUBLISH PACK:\nNo publish pack was generated for this story."
+
+    titles = [t for t in (pack.get("titles") or []) if t]
+    selected = pack.get("selected_title") or (titles[0] if titles else "")
+    alt = [t for t in titles if t != selected][:3]
+    description = (pack.get("description") or "").strip()
+    tags = pack.get("tags") or []
+    hashtags = pack.get("hashtags") or []
+    audience = pack.get("audience") or {}
+
+    lines = ["PUBLISH PACK", ""]
+    if selected:
+        lines.append(f"Title: {selected}")
+    if alt:
+        lines.append("Alt titles:")
+        lines.extend(f"  - {t}" for t in alt)
+    lines.append("")
+    if description:
+        if len(description) > 1600:
+            description = description[:1597] + "..."
+        lines += ["Description:", description, ""]
+    if hashtags:
+        lines.append("Hashtags: " + " ".join(hashtags[:15]))
+    if tags:
+        lines.append("Tags: " + ", ".join(str(t) for t in tags[:20]))
+
+    audience_bits = ", ".join(
+        b
+        for b in (
+            audience.get("persona", ""),
+            audience.get("age_range", ""),
+            audience.get("gender_skew", ""),
+        )
+        if b
+    )
+    if audience_bits:
+        lines += ["", f"Audience: {audience_bits}"]
+    if audience.get("why_they_watch"):
+        lines.append(f"Why they watch: {audience['why_they_watch']}")
+    if audience.get("best_posting_window"):
+        lines.append(f"Best posting window: {audience['best_posting_window']}")
+
+    text = "\n".join(lines)
+    if len(text) > 4096:
+        text = text[:4093] + "..."
+    return text
+
+
+async def run_horror_pipeline(context, chat_id):
+    """Produce an ~8-minute urban-legend video end-to-end and deliver it to chat_id.
+
+    Story (target 480s) -> horror-preset TTS -> render with the 119s cap
+    lifted (target 600s) -> video + publish pack posted to the chat.
+    """
+    global stats
+
+    theme = pick_unused_theme(HORROR_THEMES)
+    stats["last_theme"] = theme
+
+    # ── Story ──
+    stats["current_stage"] = "horror:story"
+    await send_status(
+        context,
+        f"{progress_bar(5)} HORROR RUN\n"
+        f"Theme: {theme}\n"
+        f"Target: {HORROR_TARGET_DURATION}s (~{HORROR_TARGET_DURATION // 60} min)\n"
+        "Generating story (7 AI stages, a few minutes)...",
+        chat_id,
+    )
+    story_result = await api_post(
+        "/api/forge/run-all",
+        {"theme": theme, "target_duration": HORROR_TARGET_DURATION},
+        timeout=1900,
+        retry_safe=False,
+    )
+
+    script = story_result.get("final_script", "")
+    score = story_result.get("quality_score", 0)
+    words = story_result.get("word_count", 0)
+    est_duration = story_result.get("estimated_duration", 0)
+    hook = story_result.get("selected_hook") or {}
+    hook_text = hook.get("text", "N/A") if hook else "N/A"
+    publish_pack = story_result.get("publish_pack") or {}
+
+    if not script or len(script) < 50:
+        stats["total_errors"] += 1
+        await send_status(
+            context,
+            "HORROR RUN FAILED: story generation returned no script.",
+            chat_id,
+        )
+        return False
+
+    stats["total_generated"] += 1
+    stats["last_score"] = score
+
+    lead_gender = detect_lead_gender(script, theme)
+    voice = HORROR_VOICE_FEMALE if lead_gender == "female" else HORROR_VOICE_MALE
+
+    await send_status(
+        context,
+        f"{progress_bar(25)} HORROR RUN\n"
+        f"Script: {words} words (~{est_duration}s) | Score: {score}/100\n"
+        f"Lead: {lead_gender} | Voice: {voice} (preset: horror, tone: dark)\n"
+        f"Hook: {hook_text}",
+        chat_id,
+    )
+
+    # ── Audio (horror preset; long scripts are chunked server-side) ──
+    stats["current_stage"] = "horror:audio"
+    await send_status(
+        context,
+        f"{progress_bar(40)} HORROR RUN\n"
+        "Synthesizing ~8 minutes of narration with the horror preset...\n"
+        "CPU TTS for a long script can take several minutes.",
+        chat_id,
+    )
+    tts_result = await api_post(
+        "/api/tts/generate",
+        {
+            "text": script,
+            "voice": voice,
+            "mode": "storytelling",
+            "preset": "horror",
+            "tone": "dark",
+            "use_enhancement": True,
+            "enhancement_level": "balanced",
+        },
+        timeout=2400,
+    )
+    audio_id = tts_result.get("id", "")
+    audio_duration = tts_result.get("duration") or 0
+    if not audio_id:
+        stats["total_errors"] += 1
+        await send_status(
+            context, "HORROR RUN FAILED: TTS returned no audio.", chat_id
+        )
+        return False
+    stats["total_audio"] += 1
+
+    # ── Video (lift the 119s Shorts cap for this job) ──
+    stats["current_stage"] = "horror:video"
+    await send_status(
+        context,
+        f"{progress_bar(60)} HORROR RUN\n"
+        f"Audio ready: {audio_duration:.0f}s\n"
+        f"Rendering long video (cap lifted to {HORROR_RENDER_DURATION}s)...",
+        chat_id,
+    )
+    render_result = await api_post(
+        "/api/renders/",
+        {
+            "project_id": PROJECT_ID,
+            "generated_audio_id": audio_id,
+            "video_folders": DEFAULT_VIDEO_FOLDERS,
+            "target_duration": HORROR_RENDER_DURATION,
+        },
+        timeout=30,
+    )
+    render_id = render_result.get("id", "")
+    if not render_id:
+        stats["total_errors"] += 1
+        await send_status(
+            context, "HORROR RUN FAILED: could not queue render job.", chat_id
+        )
+        return False
+
+    # Long renders: 420 x 5s = 35 minutes of polling.
+    for i in range(420):
+        await asyncio.sleep(5)
+        status_result = await api_get(f"/api/renders/{render_id}", timeout=10)
+        status = status_result.get("status", "")
+        if status == "completed":
+            break
+        if status == "failed":
+            error_message = status_result.get("error_message", "")
+            stats["total_errors"] += 1
+            await send_status(
+                context,
+                f"HORROR RUN FAILED during render: {error_message or 'unknown'}",
+                chat_id,
+            )
+            return False
+        if i > 0 and i % 24 == 0:
+            await send_status(
+                context,
+                f"{progress_bar(75)} HORROR RUN\nRendering... "
+                f"({i * 5}s elapsed)",
+                chat_id,
+            )
+    else:
+        stats["total_errors"] += 1
+        await send_status(
+            context, "HORROR RUN FAILED: render timed out.", chat_id
+        )
+        return False
+
+    output = await api_get(f"/api/renders/{render_id}/output", timeout=10)
+    video_filename = output.get("video_filename", "")
+    render_duration = output.get("duration", 0) or audio_duration
+    stats["total_video"] += 1
+
+    # ── Deliver video + publish pack ──
+    stats["current_stage"] = "horror:delivering"
+    await send_status(
+        context,
+        f"{progress_bar(90)} HORROR RUN\nUploading video to Telegram "
+        "(~45MB, can take a minute)...",
+        chat_id,
+    )
+    await send_video_to_telegram(
+        context, render_id, video_filename, hook_text, score, render_duration, chat_id
+    )
+    await send_status(context, format_publish_pack(publish_pack), chat_id)
+
+    stories_completed.add(theme)
+    stats["current_stage"] = "completed"
+    await send_status(
+        context,
+        f"{progress_bar(100)} HORROR RUN DONE\n"
+        f"Theme: {theme}\n"
+        f"Audio: {audio_duration:.0f}s | Video: {render_duration:.0f}s | "
+        f"Score: {score}/100",
+        chat_id,
+    )
+    return True
+
+
+async def _horror_task(context, chat_id):
+    """Task wrapper that always releases the horror_running lock."""
+    global horror_running, stats
+    try:
+        await run_horror_pipeline(context, chat_id)
+    except Exception as e:
+        log.error(f"Horror pipeline error: {e}", exc_info=True)
+        stats["total_errors"] += 1
+        await send_status(
+            context, f"HORROR RUN FAILED: {e}", chat_id
+        )
+    finally:
+        horror_running = False
+
+
 async def autopilot_loop(context):
     global autopilot_running, stats
 
@@ -1377,6 +1655,39 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def horror_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Generate an ~8-minute urban-legend video and post it to this chat."""
+    global horror_running
+    if not await authorized_command(update):
+        return
+    if horror_running:
+        await safe_reply(
+            update,
+            "A horror run is already in progress. I will post the video here when it finishes.",
+        )
+        return
+    if stories_in_progress:
+        await safe_reply(
+            update,
+            "An autopilot story is in progress (CPU is busy). Try /horror again in a minute.",
+        )
+        return
+    if not update.effective_chat:
+        return
+
+    horror_running = True
+    chat_id = str(update.effective_chat.id)
+    await safe_reply(
+        update,
+        "Starting an ~8-minute urban legend...\n\n"
+        "Story (7 AI stages) -> horror-voice narration -> long render -> "
+        "video + publish pack posted here.\n\n"
+        "Takes roughly 15-30 minutes. Progress messages will follow. "
+        "One run at a time.",
+    )
+    asyncio.create_task(_horror_task(context, chat_id))
+
+
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await authorized_command(update):
         return
@@ -1386,6 +1697,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/start — Start (runs immediately)\n"
         "/stop — Stop\n"
         "/status — Stats\n"
+        "/horror — Generate an ~8-min urban-legend video + publish pack\n"
         "/help — This message",
     )
 
@@ -1420,6 +1732,7 @@ def main():
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("stop", stop_cmd))
     app.add_handler(CommandHandler("status", status_cmd))
+    app.add_handler(CommandHandler("horror", horror_cmd))
     app.add_handler(CommandHandler("help", help_cmd))
 
     print("Bot running. /start to begin.")

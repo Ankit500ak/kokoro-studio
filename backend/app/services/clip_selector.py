@@ -21,7 +21,7 @@ class ClipSelector:
         self.max_clip_duration_ms = 30000   # 30 seconds maximum per clip
         self.max_per_folder_ms = 40000      # 40 seconds max per folder
         self.min_total_ms = 5000            # 5 seconds minimum
-        self.max_total_ms = 119000          # 119 seconds max (2 min Shorts)
+        self.max_total_ms = 600000          # 10 minutes max (long-form ceiling)
 
     def select_clips(
         self,
@@ -34,11 +34,11 @@ class ClipSelector:
         """Select clips to fill the target duration.
 
         Rules:
-        - Short clips (5-25 seconds) for variety and copyright safety
-        - Max 30 seconds from each folder
-        - Never exceed 5 minutes total
+        - Shorts use short clips (3-30s); long videos prefer 10-30s clips
+        - Per-folder caps scale with the target duration
+        - Never exceed the 10-minute total ceiling
         - Mix different folders for variety
-        - Never repeat the same clip twice
+        - Clips repeat only when the library cannot fill the target once
         """
         rng = random.Random(seed)
 
@@ -70,11 +70,26 @@ class ClipSelector:
         if folder_filter and len(folder_filter) == 1:
             effective_max_per_folder = target_duration_ms
         else:
-            # Allow more per-folder for longer videos (up to 2 min per folder)
-            effective_max_per_folder = min(target_duration_ms * 0.4, 120000)
+            # Allow more per-folder for longer videos (up to 2 min per folder),
+            # but never below what N folders need to cover the target (with
+            # margin) so long-form renders cannot starve from folder caps.
+            per_folder_needed = target_duration_ms / max(1, len(folder_map))
+            effective_max_per_folder = max(
+                min(target_duration_ms * 0.4, 120000),
+                min(per_folder_needed * 1.5, target_duration_ms),
+            )
 
-        # Use actual target duration with minimum bound
-        target_ms = max(self.min_total_ms, target_duration_ms)
+        # Use actual target duration bounded by min/max totals
+        target_ms = min(
+            max(self.min_total_ms, target_duration_ms), self.max_total_ms
+        )
+
+        # Long videos: prefer longer clips (10-30s) so the FFmpeg command
+        # stays well under the Windows command-line length limit.
+        if target_ms > 119000:
+            ideal_clip_min_ms, ideal_clip_max_ms = 10000, self.max_clip_duration_ms
+        else:
+            ideal_clip_min_ms = ideal_clip_max_ms = None
 
         # Shuffle folder order for variety
         folder_names = list(folder_map.keys())
@@ -86,17 +101,33 @@ class ClipSelector:
         last_asset_id = None
         max_attempts = len(assets) * 5  # More attempts to find diverse clips
         attempts = 0
+        loop_pass = False  # when True, folder caps are lifted to repeat B-roll
 
         while current_ms < target_ms and attempts < max_attempts:
             attempts += 1
 
             # Pick a folder that still has capacity
-            available_folders = [
-                f for f in folder_names
-                if folder_used_ms[f] < effective_max_per_folder
-            ]
-            if not available_folders:
-                break
+            if loop_pass:
+                available_folders = list(folder_names)
+            else:
+                available_folders = [
+                    f for f in folder_names
+                    if folder_used_ms[f] < effective_max_per_folder
+                ]
+                if not available_folders:
+                    # Library capacity exhausted before hitting the target:
+                    # loop over the B-roll (repeats allowed) so the video
+                    # always covers the full audio duration.
+                    log.warning(
+                        f"ClipSelector: folder caps exhausted at "
+                        f"{current_ms/1000:.1f}s of {target_ms/1000:.1f}s, "
+                        "looping clips to fill target"
+                    )
+                    loop_pass = True
+                    folder_used_ms = {f: 0.0 for f in folder_names}
+                    available_folders = list(folder_names)
+                    if not available_folders:
+                        break
 
             folder = rng.choice(available_folders)
             candidates = [
@@ -114,10 +145,22 @@ class ClipSelector:
 
             asset_duration_ms = asset.duration * 1000
             remaining_ms = target_ms - current_ms
-            folder_remaining_ms = effective_max_per_folder - folder_used_ms[folder]
+            folder_remaining_ms = (
+                float("inf")
+                if loop_pass
+                else effective_max_per_folder - folder_used_ms[folder]
+            )
 
-            # Prefer shorter clips for variety (3-6 seconds)
-            ideal_clip_ms = rng.uniform(self.min_clip_duration_ms, self.max_clip_duration_ms)
+            # Prefer shorter clips for variety (3-6 seconds) on shorts;
+            # long videos use longer clips (10-30 seconds).
+            if ideal_clip_min_ms is not None:
+                ideal_clip_ms = rng.uniform(
+                    ideal_clip_min_ms, ideal_clip_max_ms
+                )
+            else:
+                ideal_clip_ms = rng.uniform(
+                    self.min_clip_duration_ms, self.max_clip_duration_ms
+                )
             clip_duration_ms = min(ideal_clip_ms, asset_duration_ms, remaining_ms, folder_remaining_ms)
 
             if clip_duration_ms < self.min_clip_duration_ms:

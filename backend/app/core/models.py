@@ -78,6 +78,7 @@ class RenderJob(Base):
     render_seed = Column(Integer, nullable=True)
     selected_asset_ids = Column(Text, nullable=True)
     video_folder = Column(String, nullable=True)
+    target_duration = Column(Float, nullable=True)
     caption_data = Column(Text, nullable=True)
     timeline_data = Column(Text, nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)

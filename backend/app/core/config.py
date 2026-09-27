@@ -34,14 +34,25 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 500 * 1024 * 1024  # 500MB
 
     # TTS generation timeouts (seconds)
+    # CPU synthesis with multi-pass + enhancement measures ~0.7-1.0 s/word
+    # (horror preset is slower); budgets must cover a full 400-word chunk.
     TTS_CHUNK_SIZE: int = 400  # Max words per chunk for long scripts
     TTS_CHUNK_TIMEOUT_BASE: float = 180.0  # Base timeout per chunk (seconds)
-    TTS_CHUNK_TIMEOUT_PER_WORD: float = 0.5  # Extra seconds per word in chunk
+    TTS_CHUNK_TIMEOUT_PER_WORD: float = 1.2  # Extra seconds per word in chunk
     TTS_SINGLE_TIMEOUT_BASE: float = 300.0  # Base timeout for single-pass
-    TTS_SINGLE_TIMEOUT_PER_WORD: float = 0.6  # Extra seconds per word (single)
+    TTS_SINGLE_TIMEOUT_PER_WORD: float = 1.0  # Extra seconds per word (single)
     TTS_PREVIEW_TIMEOUT: float = 60.0
+
+    # Render duration cap (seconds). Legacy Shorts renders stay capped at 119s;
+    # long-form jobs pass target_duration (60-600) to lift the cap.
+    RENDER_DEFAULT_MAX_DURATION: float = 119.0
+    RENDER_MAX_DURATION: float = 600.0
+    # Keep long renders under Telegram's ~50MB bot upload limit.
+    RENDER_TELEGRAM_MAX_MB: float = 45.0
     STORY_PIPELINE_TIMEOUT: float = 1800.0
-    STORY_STAGE_TIMEOUT: float = 240.0
+    # Long-form (8-min) stories need bigger single-stage budgets: the unified
+    # polish stage rewrites the full script and can retry once on AI failure.
+    STORY_STAGE_TIMEOUT: float = 360.0
     STORY_ENABLE_ENHANCEMENT: bool = False
     # Stage 12: titles / description / tags / audience / thumbnail pack.
     STORY_ENABLE_PUBLISH_PACK: bool = True

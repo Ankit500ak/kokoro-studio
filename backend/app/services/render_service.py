@@ -228,7 +228,7 @@ class RenderService:
                 thumbnail_filename=thumbnail_filename
                 if os.path.exists(thumbnail_path)
                 else None,
-                duration=timeline.duration_ms / 1000,
+                duration=self._effective_duration(timeline, job),
                 width=1080,
                 height=1920,
                 file_size=file_size,
@@ -245,6 +245,19 @@ class RenderService:
 
         except Exception as e:
             self._fail_job(job, "INTERNAL_ERROR", str(e), db)
+
+    @staticmethod
+    def _effective_duration(timeline: RenderTimeline, job: RenderJob) -> float:
+        """Capped output duration in seconds.
+
+        Legacy Shorts renders stay capped at 119s; long-form jobs lift the cap
+        via RenderJob.target_duration (bounded 60-600 by the API schema).
+        """
+        audio_duration = timeline.duration_ms / 1000
+        job_cap = getattr(job, "target_duration", None)
+        cap = float(job_cap) if job_cap else settings.RENDER_DEFAULT_MAX_DURATION
+        cap = min(cap, settings.RENDER_MAX_DURATION)
+        return min(audio_duration, cap)
 
     def _render_with_ffmpeg(
         self,
@@ -358,11 +371,40 @@ class RenderService:
                 # Map outputs
                 filter_complex = ";".join(filter_parts)
 
-                # Calculate total duration for proper length (cap at 119s for 2-min Shorts)
-                total_duration = min(timeline.duration_ms / 1000, 119.0)
+                # Calculate total duration: long-form jobs lift the legacy
+                # 119s Shorts cap via job.target_duration (60-600s).
+                total_duration = self._effective_duration(timeline, job)
                 log.info(
-                    f"[Render] Video duration: {total_duration:.1f}s (capped at 119s for 2-min Shorts)"
+                    f"[Render] Video duration: {total_duration:.1f}s "
+                    f"(audio {timeline.duration_ms / 1000:.1f}s)"
                 )
+
+                if total_duration > settings.RENDER_DEFAULT_MAX_DURATION:
+                    # Long video: rate-limit to keep the file under Telegram's
+                    # bot upload limit (~45MB budget incl. 128k audio).
+                    video_kbps = max(
+                        500,
+                        int(
+                            settings.RENDER_TELEGRAM_MAX_MB * 8192 / total_duration
+                            - 128
+                        ),
+                    )
+                    encode_args = [
+                        "-b:v",
+                        f"{video_kbps}k",
+                        "-maxrate",
+                        f"{int(video_kbps * 1.3)}k",
+                        "-bufsize",
+                        f"{video_kbps * 2}k",
+                        "-preset",
+                        "veryfast",
+                    ]
+                    log.info(
+                        f"[Render] Long video: targeting {video_kbps}k video bitrate "
+                        f"(~{settings.RENDER_TELEGRAM_MAX_MB:.0f}MB budget)"
+                    )
+                else:
+                    encode_args = ["-crf", "23", "-preset", "ultrafast"]
 
                 cmd.extend(
                     [
@@ -374,10 +416,7 @@ class RenderService:
                         f"{n_video}:a",
                         "-c:v",
                         "libx264",
-                        "-preset",
-                        "ultrafast",
-                        "-crf",
-                        "23",
+                        *encode_args,
                         "-c:a",
                         "aac",
                         "-b:a",
@@ -390,10 +429,12 @@ class RenderService:
                     ]
                 )
 
-                # Execute FFmpeg with longer timeout (scale with video duration)
-                # Minimum 10 minutes, add 30 seconds per minute of video
+                # Execute FFmpeg with longer timeout (scale with video duration).
+                # Long rate-limited encodes at 1080x1920 run much slower than
+                # realtime-capable ultrafast shorts, so allow 2 minutes per
+                # minute of video on top of a 10 minute floor.
                 video_duration_min = total_duration / 60
-                timeout_seconds = max(600, int(600 + video_duration_min * 30))
+                timeout_seconds = max(600, int(600 + video_duration_min * 120))
                 log.info(
                     f"[Render] FFmpeg timeout set to {timeout_seconds}s for {total_duration:.1f}s video"
                 )
@@ -407,6 +448,15 @@ class RenderService:
                 )
 
                 if result.returncode != 0:
+                    # Progress spam crowds the tail; keep the full stderr for
+                    # post-mortem (the real fatal line is usually mid-stream).
+                    stderr_log = self.render_dir / f"{job.id}.ffmpeg.log"
+                    try:
+                        with open(stderr_log, "w", encoding="utf-8") as f:
+                            f.write(result.stderr or "")
+                        log.error(f"[Render] Full FFmpeg stderr: {stderr_log}")
+                    except OSError:
+                        pass
                     self.last_ffmpeg_error = (result.stderr or "")[-1500:]
                     log.error(f"FFmpeg stderr: {result.stderr[-500:]}")
                     return False

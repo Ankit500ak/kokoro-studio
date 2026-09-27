@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 
@@ -7,6 +7,8 @@ class RenderJobCreate(BaseModel):
     project_id: str
     generated_audio_id: str
     video_folders: Optional[List[str]] = None
+    # Optional output cap in seconds; None keeps the legacy 119s Shorts cap.
+    target_duration: Optional[float] = Field(default=None, ge=60, le=600)
 
 
 class RenderJobResponse(BaseModel):
@@ -18,6 +20,7 @@ class RenderJobResponse(BaseModel):
     current_stage: Optional[str] = None
     error_code: Optional[str] = None
     error_message: Optional[str] = None
+    target_duration: Optional[float] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
