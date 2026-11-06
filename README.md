@@ -134,7 +134,7 @@ Then open **http://localhost:5174**.
 | Service | Address | Started by |
 |---|---|---|
 | Web UI | http://localhost:5174 | `start-frontend.bat` |
-| API + docs | http://localhost:8000/docs | `start-backend.bat` |
+| API + docs | http://localhost:8000/api/docs | `start-backend.bat` |
 | Telegram bot | — | `telegram.bat` |
 | All of the above | — | `start.bat` |
 | Backend only (PowerShell) | — | `start.ps1` |
@@ -164,7 +164,7 @@ Everything else has working defaults. **`.env` is gitignored — never commit it
 
 ## API surface
 
-Base URL `http://localhost:8000` · interactive docs at `/docs`
+Base URL `http://localhost:8000` · interactive docs at `/api/docs`
 
 | Group | Prefix | Endpoints |
 |---|---|---|
@@ -189,9 +189,9 @@ kokoro-studio/
 │   │   ├── core/           settings, database models, encryption, voices.json
 │   │   ├── schemas/        Pydantic request/response models
 │   │   ├── services/       kokoro_service, render_service, caption_manager, nvidia_client…
-│   │   └── main.py         app entrypoint, logging, lifespan
+│   │   ├── main.py         app entrypoint, logging, lifespan
+│   │   └── storage/        RUNTIME DATA — 44 GB, gitignored
 │   ├── data/               channel description, upload queue
-│   ├── storage/            RUNTIME DATA — 44 GB, gitignored
 │   ├── telegram_bot.py     auto-pilot bot
 │   ├── requirements.txt
 │   └── .env.example
@@ -234,7 +234,7 @@ for copy-from-another-machine instructions and the GitHub Release workflow
 | [VOICE_GUIDE.md](VOICE_GUIDE.md) | voice catalogue: tone, style, best use case |
 | [DEEP_ARCHITECTURE.md](DEEP_ARCHITECTURE.md) · [professional_architecture.md](professional_architecture.md) | design notes |
 | [YOUTUBE_UPLOAD_PLAN.md](YOUTUBE_UPLOAD_PLAN.md) · [AUTO_SCRIPT_PLAN.md](AUTO_SCRIPT_PLAN.md) | feature plans |
-| `http://localhost:8000/docs` | live interactive API reference |
+| `http://localhost:8000/api/docs` | live interactive API reference |
 
 ---
 
