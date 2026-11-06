@@ -62,6 +62,15 @@ class Settings(BaseSettings):
     YOUTUBE_REDIRECT_URI: str = "http://localhost:8000/api/youtube/callback"
     YOUTUBE_SCOPES: str = "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl"
 
+    # YouTube auto-upload (opt-in): when a render finishes, upload it without
+    # a manual POST /api/youtube/upload. OFF by default; uploads start out
+    # private so a human can review before anything goes public.
+    AUTO_UPLOAD_YOUTUBE: bool = False
+    UPLOAD_PRIVACY_STATUS: str = "private"
+    UPLOAD_CATEGORY_ID: str = "22"
+    UPLOAD_TAGS: str = ""  # comma-separated extra tags merged into every auto-upload
+    UPLOAD_NOTIFY_TELEGRAM: bool = True
+
     CORS_ORIGINS: List[str] = ["*"]
 
     # Encryption key for sensitive data (YouTube tokens) - Fernet format
