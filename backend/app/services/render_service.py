@@ -243,6 +243,28 @@ class RenderService:
             job.completed_at = datetime.utcnow()
             db.commit()
 
+            # Optional YouTube auto-upload (opt-in, off by default). The
+            # service dispatches to a background thread, so this can never
+            # block or fail the completed render; outcomes land on the
+            # YouTubeUpload record and (optionally) Telegram.
+            try:
+                from .youtube_upload_service import dispatch_auto_upload
+
+                project = job.project
+                dispatch_auto_upload(
+                    render_output_id=output.id,
+                    video_path=str(output_path),
+                    title=(project.title or project.name) if project else "",
+                    description=(project.script_text or "")[:500] if project else "",
+                    thumbnail_path=str(thumbnail_path)
+                    if os.path.exists(thumbnail_path)
+                    else None,
+                )
+            except Exception:
+                log.exception(
+                    f"[Render] Auto-upload dispatch failed for job {job.id}"
+                )
+
         except Exception as e:
             self._fail_job(job, "INTERNAL_ERROR", str(e), db)
 
