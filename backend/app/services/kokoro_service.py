@@ -305,8 +305,10 @@ def _normalize_numbers(text: str) -> str:
         end = int(match.group(2))
         return f"from {_number_to_words(start)} to {_number_to_words(end)}"
     
-    def replace_year(match):
-        year = int(match.group(0))
+    def _year_to_words(year):
+        """Speak a year the way people say it: 2024 -> 'twenty twenty
+        four', 1999 -> 'nineteen ninety nine', 2000 -> 'twenty hundred',
+        1905 -> 'nineteen oh five'."""
         if 1000 <= year <= 2099:
             if year % 100 == 0:
                 return _number_to_words(year // 100) + ' hundred'
@@ -317,6 +319,15 @@ def _normalize_numbers(text: str) -> str:
                 last_two = year % 100
                 return f"{_number_to_words(first_two)} {_number_to_words(last_two)}"
         return _number_to_words(year)
+
+    def replace_year(match):
+        return _year_to_words(int(match.group(0)))
+
+    def replace_year_in_context(match):
+        # Group 1 is the context that marks the number as a year
+        # ("in 2024", "since 1999", "June 2024"); re-emit it verbatim
+        # and convert only the digits in group 2.
+        return match.group(1) + _year_to_words(int(match.group(2)))
     
     # Order matters - more specific patterns first
     text = re.sub(r'\b(\d{1,2}):(\d{2})\b', replace_time, text)
@@ -325,6 +336,17 @@ def _normalize_numbers(text: str) -> str:
     text = re.sub(r'(\(?\d{3}\)?)[\s.\-]?(\d{3})[\s.\-]?(\d{4})', replace_phone, text)
     text = re.sub(r'([$€£])(\d[\d,]*\.?\d*)', replace_money, text)
     text = re.sub(r'(\d+)\s*/\s*(\d+)', replace_fraction, text)
+    # Years: speak 4-digit numbers as years only in year contexts (a
+    # temporal preposition or a month name in front of them), so plain
+    # quantities like "2000 items" stay cardinal. Runs after the date
+    # and phone patterns (they carry their own year handling) and
+    # before ranges, decimals and the catch-all cardinal pass.
+    text = re.sub(
+        r'\b((?:in|since|by|until|before|after|during|from|of|year|'
+        r'January|February|March|April|May|June|July|August|September|'
+        r'October|November|December)\s+)'
+        r'(1\d{3}|20\d{2})(?!\d)(?!\.\d)',
+        replace_year_in_context, text, flags=re.IGNORECASE)
     text = re.sub(r'(\d+)\s*[-–]\s*(\d+)', replace_range, text)
     text = re.sub(r'(\d+(?:\.\d+)?)%', replace_percentage, text)
     text = re.sub(r'(\d+\.\d+)', replace_decimal, text)
