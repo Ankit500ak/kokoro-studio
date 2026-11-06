@@ -173,21 +173,35 @@ def _number_to_words(n: int) -> str:
     return ' '.join(parts)
 
 
+_ORDINAL_IRREGULARS = {
+    'one': 'first', 'two': 'second', 'three': 'third', 'five': 'fifth',
+    'eight': 'eighth', 'nine': 'ninth', 'twelve': 'twelfth',
+}
+
+
+def _to_ordinal(words: str) -> str:
+    """Convert a cardinal phrase to its ordinal form.
+
+    Only the final word changes: 'twenty one' -> 'twenty first',
+    'one hundred' -> 'one hundredth', 'twenty' -> 'twentieth'.
+    """
+    parts = words.split(' ')
+    last = parts[-1]
+    if last in _ORDINAL_IRREGULARS:
+        parts[-1] = _ORDINAL_IRREGULARS[last]
+    elif last.endswith('y'):
+        parts[-1] = last[:-1] + 'ieth'
+    else:
+        parts[-1] = last + 'th'
+    return ' '.join(parts)
+
+
 def _normalize_numbers(text: str) -> str:
     """Convert numbers to spoken words for natural pronunciation."""
     
     def replace_ordinal(match):
         num = int(match.group(1))
-        words = _number_to_words(num)
-        if num % 100 in (11, 12, 13):
-            return words + 'th'
-        elif num % 10 == 1:
-            return words + 'st'
-        elif num % 10 == 2:
-            return words + 'nd'
-        elif num % 10 == 3:
-            return words + 'rd'
-        return words + 'th'
+        return _to_ordinal(_number_to_words(num))
     
     def replace_cardinal(match):
         num = int(match.group(0).replace(',', ''))
