@@ -76,25 +76,16 @@ class Settings(BaseSettings):
     # Encryption key for sensitive data (YouTube tokens) - Fernet format
     ENCRYPTION_KEY: str = ""
 
-    # NVIDIA NIM API (working models as of 2024) - set NVIDIA_API_KEY in .env to enable
-    NVIDIA_API_KEY: str = ""
-    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
-    # Nemotron Super 120B (A12B active params) - fastest JSON-compliant model on NIM.
-    NVIDIA_MODEL: str = "nvidia/nemotron-3-super-120b-a12b"
-    NVIDIA_REASONING_EFFORT: str = "low"
-    NVIDIA_TIMEOUT: float = 90.0
-    NVIDIA_MAX_TOKENS: int = 4096
-    NVIDIA_TEMPERATURE: float = 0.8
-
-    # Gemini API configuration
+    # Gemini API - the sole AI provider (StoryForge, metadata generation,
+    # /api/tts think-refine). Get a key at https://aistudio.google.com/apikey
+    # and set GEMINI_API_KEY in .env. Calls use Google AI Studio's
+    # OpenAI-compatible endpoint, hence the /v1beta/openai base URL.
     GEMINI_API_KEY: str = ""
-    GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/models"
-    GEMINI_MODEL: str = "gemini-1.5-flash"
-
-    # Local Ollama configuration (fallback when NVIDIA API key not set)
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3.1:latest"
-    OLLAMA_TIMEOUT: float = 300.0
+    GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    GEMINI_MODEL: str = "gemini-3.8-flash"
+    GEMINI_TIMEOUT: float = 60.0
+    GEMINI_MAX_TOKENS: int = 4096
+    GEMINI_TEMPERATURE: float = 0.8
 
     # Telegram Auto-Pilot (keep secrets in .env, not in .bat launchers)
     TELEGRAM_BOT_TOKEN: str = ""
