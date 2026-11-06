@@ -254,11 +254,16 @@ def _normalize_numbers(text: str) -> str:
     
     def replace_phone(match):
         parts = match.groups()
-        if parts[2]:  # (XXX) XXX-XXXX
-            return f"{_number_to_words(int(parts[0]))} {_number_to_words(int(parts[1]))} {_number_to_words(int(parts[2]))}"
-        elif parts[4]:  # XXX-XXX-XXXX
-            return f"{_number_to_words(int(parts[3]))} {_number_to_words(int(parts[4]))} {_number_to_words(int(parts[5]))}"
-        return match.group(0)
+        # The pattern captures exactly three groups (area code, exchange,
+        # line number). The area code may carry parentheses, e.g. "(555)",
+        # so strip non-digits before converting - int("(555)") raises
+        # ValueError and used to crash preprocessing for the whole script.
+        area = re.sub(r'\D', '', parts[0])
+        return (
+            f"{_number_to_words(int(area))} "
+            f"{_number_to_words(int(parts[1]))} "
+            f"{_number_to_words(int(parts[2]))}"
+        )
     
     def replace_money(match):
         symbol = match.group(1) or ''
