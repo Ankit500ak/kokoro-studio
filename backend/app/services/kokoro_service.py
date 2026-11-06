@@ -291,12 +291,11 @@ def _normalize_numbers(text: str) -> str:
     def replace_fraction(match):
         numerator = int(match.group(1))
         denominator = int(match.group(2))
-        special = {2: 'half', 3: 'third', 4: 'quarter', 5: 'fifth',
-                   6: 'sixth', 7: 'seventh', 8: 'eighth', 9: 'ninth', 10: 'tenth'}
+        special = {2: 'half', 4: 'quarter'}
         if denominator in special:
             den_word = special[denominator]
         else:
-            den_word = _number_to_words(denominator) + 'ths'
+            den_word = _to_ordinal(_number_to_words(denominator))
         if numerator == 1:
             return f'a {den_word}'
         return f"{_number_to_words(numerator)} {den_word}s"
