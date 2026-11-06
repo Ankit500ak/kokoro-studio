@@ -157,8 +157,46 @@ Then open **http://localhost:5174**.
 | `ENCRYPTION_KEY` | Surviving YouTube re-auth across restarts | generate: see comment in `.env.example` |
 | `DEFAULT_VOICE`, `DEFAULT_SPEED` | TTS defaults | e.g. `am_liam`, `1.08` |
 | `TTS_*_TIMEOUT*` | Slow/CPU machines | raise these if long scripts time out |
+| `AUTO_UPLOAD_YOUTUBE` | Automatic upload of finished renders | `false` by default — see *Automatic YouTube upload* below |
 
 Everything else has working defaults. **`.env` is gitignored — never commit it.**
+
+### Automatic YouTube upload (opt-in)
+
+With `AUTO_UPLOAD_YOUTUBE=true`, every render that finishes is uploaded to
+YouTube on its own — no manual `POST /api/youtube/upload`. Behaviour:
+
+- **Private by default.** `UPLOAD_PRIVACY_STATUS` defaults to `private`;
+  review the video in YouTube Studio, then publish. Switch to `unlisted`
+  or `public` only if you really want hands-off publishing.
+- **Non-blocking and idempotent.** The upload runs on a background thread
+  after the render completes, and a render is never marked failed because
+  an upload failed. Each attempt is recorded in the `youtube_uploads`
+  table (the same records the manual flow creates), and a render that
+  already has a YouTube video id is never uploaded twice.
+- **Metadata** comes from the project (title, script excerpt) merged with
+  `UPLOAD_TAGS`; the category comes from `UPLOAD_CATEGORY_ID` (default
+  `22`). Transient errors are retried up to 3 times with exponential
+  backoff; quota and permission errors are not retried.
+- **Notification.** With `UPLOAD_NOTIFY_TELEGRAM=true` (and the Telegram
+  bot token/chat configured), you get the video URL — or the error —
+  after each auto-upload.
+
+One-time setup:
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/),
+   create a project and enable the **YouTube Data API v3**.
+2. Create an OAuth client and put its id/secret in `YOUTUBE_CLIENT_ID` /
+   `YOUTUBE_CLIENT_SECRET`. Keep `YOUTUBE_SCOPES` as in `.env.example` —
+   it must include `https://www.googleapis.com/auth/youtube.upload`
+   (the `youtube` and `youtube.force-ssl` scopes are needed for
+   thumbnails and playlists).
+3. Set a stable `ENCRYPTION_KEY` (see `.env.example`) so the stored
+   tokens survive restarts.
+4. Start the backend and visit `http://localhost:8000/api/youtube/auth`
+   once to connect the channel. Tokens are stored Fernet-encrypted.
+5. Set `AUTO_UPLOAD_YOUTUBE=true` and restart. Finished renders now
+   upload automatically.
 
 ---
 
