@@ -9,10 +9,10 @@ import re
 import random
 from dataclasses import dataclass, field
 
-from .nvidia_client import NVIDIAClient
+from .gemini_client import GeminiClient
 
 # Module-level instance for convenient access
-nvidia_client = NVIDIAClient()
+gemini_client = GeminiClient()
 
 log = logging.getLogger(__name__)
 
@@ -487,7 +487,7 @@ async def _llm_generate_titles(system_prompt: str, user_prompt: str) -> tuple[st
         f"TOPIC: {user_prompt}\n"
     )
     
-    result = await nvidia_client.generate_structured(system, user, schema_key="draft")
+    result = await gemini_client.generate_structured(system, user, schema_key="draft")
     
     if result and isinstance(result, dict) and "titles" in result:
         titles = [t.strip() for t in result["titles"] if isinstance(t, str)][:3]
@@ -514,7 +514,7 @@ async def _llm_generate_description(system_prompt: str, user_prompt: str) -> str
         f"STORYTIME: personal, engaging, conversational. Real stories from real people.\n\n"
     )
     
-    result = await nvidia_client.generate_structured(system, user, schema_key="draft")
+    result = await gemini_client.generate_structured(system, user, schema_key="draft")
     
     if result and isinstance(result, dict):
         desc = result.get("description", "")
@@ -543,7 +543,7 @@ async def _llm_generate_tags_and_hashtags(system_prompt: str, user_prompt: str) 
         f"NICHE: storytime\n\n"
     )
     
-    result = await nvidia_client.generate_structured(system, user, schema_key="draft")
+    result = await gemini_client.generate_structured(system, user, schema_key="draft")
     
     tags = []
     hashtags = []

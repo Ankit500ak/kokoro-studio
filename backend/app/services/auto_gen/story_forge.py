@@ -34,7 +34,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional
 
-from ..nvidia_client import NVIDIAClient
+from ..gemini_client import GeminiClient
 from ..thumbnail_engine import generate_thumbnail
 from ...core.config import settings
 from ..theme_tracker import is_theme_used, mark_theme_used
@@ -1136,7 +1136,7 @@ class StoryForgePipeline:
     """10-stage AI pipeline for generating hooking short stories."""
 
     def __init__(self):
-        self.client = NVIDIAClient()
+        self.client = GeminiClient()
         self.sessions: dict[str, PipelineResult] = {}
         self._session_timestamps: dict[str, float] = {}
         self._session_ttl: float = 3600
@@ -2293,7 +2293,7 @@ class StoryForgePipeline:
 
         description = response.get("description")
         if isinstance(description, str) and len(description.strip()) > 40:
-            pack.description = NVIDIAClient._strip_markdown_fences(description).strip()
+            pack.description = GeminiClient._strip_markdown_fences(description).strip()
 
         for key, cap in (("tags", 12), ("hashtags", 7)):
             raw = response.get(key)

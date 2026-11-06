@@ -423,14 +423,14 @@ class ThinkResponse(BaseModel):
 @router.post("/think", response_model=ThinkResponse)
 async def think_story(req: ThinkRequest):
     """Refine a story draft using AI to follow viral Shorts story rules."""
-    from ..services.nvidia_client import nvidia_client
+    from ..services.gemini_client import gemini_client
 
-    if not nvidia_client.api_key:
-        raise HTTPException(status_code=500, detail="NVIDIA API key not configured. Set NVIDIA_API_KEY in .env")
+    if not gemini_client.api_key:
+        raise HTTPException(status_code=500, detail="Gemini API key not configured. Set GEMINI_API_KEY in .env")
 
     user_prompt = f"Refine this story draft into a viral AI Shorts story:\n\n{req.text}"
 
-    refined = await nvidia_client.generate(
+    refined = await gemini_client.generate(
         system_prompt=THINK_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         temperature=0.85,
@@ -438,7 +438,7 @@ async def think_story(req: ThinkRequest):
     )
 
     if not refined:
-        raise HTTPException(status_code=500, detail="AI refinement failed. Check NVIDIA API key and try again.")
+        raise HTTPException(status_code=500, detail="AI refinement failed. Check Gemini API key and try again.")
 
     # Clean up the response — remove any accidental markdown or commentary
     refined = refined.strip()
