@@ -35,7 +35,7 @@ live in one folder on your disk.
 | Area | What you get |
 |---|---|
 | **Voice** | 14 Kokoro voices (7 male / 7 female) with per-voice speed, weight and emotion tuning |
-| **Script** | Story Forge writes hooks, drafts, retention passes and quality scores (NVIDIA NIM, Ollama fallback) |
+| **Script** | Story Forge writes hooks, drafts, retention passes and quality scores (Google Gemini) |
 | **Video** | Media library + templates + clip selector, rendered through FFmpeg with burned-in captions |
 | **Publish** | YouTube OAuth upload with metadata/thumbnail generation, or drive the whole thing from Telegram |
 
@@ -52,7 +52,7 @@ live in one folder on your disk.
 **Story Forge (LLM script pipeline)**
 - Hook selection → draft generation → retention pass → quality score, as resumable steps
 - Theme tracker + "used themes" log so videos don't repeat themselves
-- NVIDIA NIM (`NVIDIA_API_KEY`) with automatic local Ollama fallback
+- Google Gemini (`GEMINI_API_KEY`) - the sole AI provider for scripts, metadata and story refinement
 
 **Video pipeline**
 - Media library: upload or scan your own footage, folder-based, thumbnails included
@@ -78,7 +78,7 @@ live in one folder on your disk.
  │  Frontend (React)     │ ─────────────────────► │  Backend (FastAPI)        :8000      │
  │  Vite dev server      │                        │                                       │
  │  :5174                │                        │  /api/tts          Kokoro TTS         │
- └───────────────────────┘                        │  /api/story_forge  NVIDIA / Ollama    │
+ └───────────────────────┘                        │  /api/story_forge  Gemini             │
                                                   │  /api/media        library + upload   │
  ┌───────────────────────┐                        │  /api/renders      FFmpeg jobs        │
  │  Telegram bot         │ ─────────────────────► │  /api/templates    templates          │
@@ -102,7 +102,7 @@ live in one folder on your disk.
 |---|---|
 | Backend | Python, FastAPI, Uvicorn, SQLAlchemy, SQLite (aiosqlite) |
 | TTS | [Kokoro](https://github.com/hexgrad/kokoro) (`kokoro` package), soundfile, torch |
-| LLM | NVIDIA NIM API (OpenAI-compatible), Ollama local fallback |
+| LLM | Google Gemini API (AI Studio, OpenAI-compatible endpoint) |
 | Media | FFmpeg (render), Pillow (thumbnails), custom ASS caption engine |
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS, Zustand, wavesurfer.js |
 | Bot | python-telegram-bot 22 (long-poll worker: `telegram_bot.py`) |
@@ -150,8 +150,7 @@ Then open **http://localhost:5174**.
 
 | Key | Required for | Notes |
 |---|---|---|
-| `NVIDIA_API_KEY` | Story Forge script generation | Get one at <https://build.nvidia.com/> |
-| `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Free fallback when no NVIDIA key | <https://ollama.com> |
+| `GEMINI_API_KEY` | All AI generation (Story Forge, metadata, /think) | Get one at <https://aistudio.google.com/apikey> |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Telegram auto-pilot | @BotFather / @userinfobot |
 | `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET` | YouTube upload | Google Cloud Console, YouTube Data API v3 |
 | `ENCRYPTION_KEY` | Surviving YouTube re-auth across restarts | generate: see comment in `.env.example` |
@@ -226,7 +225,7 @@ kokoro-studio/
 │   │   ├── api/            FastAPI routers (tts, media, renders, story_forge, youtube…)
 │   │   ├── core/           settings, database models, encryption, voices.json
 │   │   ├── schemas/        Pydantic request/response models
-│   │   ├── services/       kokoro_service, render_service, caption_manager, nvidia_client…
+│   │   ├── services/       kokoro_service, render_service, caption_manager, gemini_client…
 │   │   ├── main.py         app entrypoint, logging, lifespan
 │   │   └── storage/        RUNTIME DATA — 44 GB, gitignored
 │   ├── data/               channel description, upload queue
