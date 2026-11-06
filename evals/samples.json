@@ -1,0 +1,52 @@
+[
+  {
+    "id": "harbour-dawn",
+    "title": "Harbour at dawn (year vs quantity)",
+    "text": "The harbour woke before the town. In 2024, the old lighthouse keeper counted 2000 gulls over the water, and every single one of them seemed to be waiting for something."
+  },
+  {
+    "id": "grandmother-letter",
+    "title": "The sealed letter (year + ordinal)",
+    "text": "My grandmother wrote the letter in 1999, on the 1st of March, and sealed it with red wax."
+  },
+  {
+    "id": "bakery-morning",
+    "title": "Bakery dialogue (times)",
+    "text": "\"We open at 7:30,\" said Marta, \"and by 9:15 the shelves are empty.\""
+  },
+  {
+    "id": "train-journey",
+    "title": "Night train (fractions)",
+    "text": "The train had covered 3/4 of the journey by midnight, and only 1/12 of the passengers were still awake."
+  },
+  {
+    "id": "auction-day",
+    "title": "Auction day (money, percent, decimal)",
+    "text": "The painting sold for $1,250.50 at auction, nearly 40% above the estimate, and 2.5 million people watched the sale online."
+  },
+  {
+    "id": "phone-call",
+    "title": "The phone call (parenthesised phone number)",
+    "text": "If anything goes wrong, call me at (555) 123-4567, any time of day."
+  },
+  {
+    "id": "expedition",
+    "title": "Desert expedition (1900s year + small cardinals)",
+    "text": "The expedition set out in 1905, crossed the desert twice, and carried 40 litres of water for each of the 12 camels."
+  },
+  {
+    "id": "championship",
+    "title": "Championship season (ordinals + recent year)",
+    "text": "She finished 3rd in the sprint, 2nd in the relay, and 21st overall \u2014 the best season since 2016."
+  },
+  {
+    "id": "weather-report",
+    "title": "Weather report (decimal + percent)",
+    "text": "Temperatures fell to 3.5 degrees overnight, with a 65% chance of rain and winds near 40 miles per hour."
+  },
+  {
+    "id": "studio-anniversary",
+    "title": "Studio anniversary (year pair vs bare quantity)",
+    "text": "Founded in 2000, the little studio marked its 25th anniversary in 2025 with 2024 guests on the guest list."
+  }
+]
